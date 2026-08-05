@@ -1,0 +1,27 @@
+term_description,trimester,.y.,group1,group2,n1,n2,statistic,p,p.adj,p.adj.signif
+Regulation of calcium ion transport,Second,log2rfu,Control,sPTD,3672,744,-23.06533674,1.03E-117,3.10E-117,****
+Positive regulation of calcium ion transport,Second,log2rfu,Control,sPTD,1530,310,-17.61014926,2.06E-69,6.18E-69,****
+Regulation of leukocyte mediated immunity,Second,log2rfu,Control,sPTD,3366,682,-20.60183715,2.64E-94,7.93E-94,****
+T cell activation,Second,log2rfu,Control,sPTD,4590,930,-16.34001969,5.12E-60,1.54E-59,****
+Negative regulation of immune system process,Second,log2rfu,Control,sPTD,7956,1612,-13.56459016,6.49E-42,1.95E-41,****
+Regulation of immune response,Second,log2rfu,Control,sPTD,17442,3534,-10.42100653,1.99E-25,5.97E-25,****
+Cellular response to hydrogen peroxide,Second,log2rfu,Control,sPTD,1224,248,-20.96153309,1.47E-97,4.42E-97,****
+Cellular response to reactive oxygen species,Second,log2rfu,Control,sPTD,1836,372,-19.72225937,1.39E-86,4.17E-86,****
+Activation of protein kinase B activity,Second,log2rfu,Control,sPTD,612,124,-16.58271387,9.29E-62,2.79E-61,****
+Platelet-derived growth factor receptor signaling pathway,Second,log2rfu,Control,sPTD,1224,248,-15.93649662,3.54E-57,1.06E-56,****
+Neurotrophin signaling pathway,Second,log2rfu,Control,sPTD,306,62,9.994167811,1.62E-23,4.85E-23,****
+Platelet aggregation,Second,log2rfu,Control,sPTD,612,124,-15.30896412,6.66E-53,2.00E-52,****
+Blood coagulation,Second,log2rfu,Control,sPTD,1836,372,-8.765883235,1.85E-18,5.56E-18,****
+Maintenance of blood-brain barrier,Second,log2rfu,Control,sPTD,306,62,8.646660684,5.30E-18,1.59E-17,****
+"Blood coagulation, fibrin clot formation",Second,log2rfu,Control,sPTD,306,62,-8.361719799,6.18E-17,1.85E-16,****
+Blood vessel diameter maintenance,Second,log2rfu,Control,sPTD,918,186,-5.025502053,5.02E-07,1.51E-06,****
+Regulation of interleukin-1 production,Second,log2rfu,Control,sPTD,306,62,-12.50892598,6.67E-36,2.00E-35,****
+Positive regulation of interleukin-1 production,Second,log2rfu,Control,sPTD,306,62,-12.50892598,6.67E-36,2.00E-35,****
+Regulation of interleukin-1 beta production,Second,log2rfu,Control,sPTD,306,62,-12.50892598,6.67E-36,2.00E-35,****
+Negative regulation of interleukin-10 production,Second,log2rfu,Control,sPTD,612,124,6.427010503,1.30E-10,3.90E-10,****
+Regulation of extracellular matrix organization,Second,log2rfu,Control,sPTD,612,124,-7.072056218,1.53E-12,4.58E-12,****
+Epithelial cell differentiation,Second,log2rfu,Control,sPTD,5508,1116,-11.02060045,3.04E-28,9.12E-28,****
+Regulation of epithelial cell differentiation,Second,log2rfu,Control,sPTD,1530,310,5.261485757,1.43E-07,4.29E-07,****
+Hormone-mediated signaling pathway,Second,log2rfu,Control,sPTD,918,186,-15.61011765,6.21E-55,1.86E-54,****
+Response to estrogen,Second,log2rfu,Control,sPTD,918,186,7.776708755,7.44E-15,2.23E-14,****
+Positive regulation of steroid metabolic process,Second,log2rfu,Control,sPTD,306,62,-12.24796011,1.72E-34,5.17E-34,****

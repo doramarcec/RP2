@@ -1,0 +1,177 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(ggsci)
+```
+
+```{r}
+getwd()
+```
+
+```{r}
+hyp_res <- read_csv("../output/full_hypergraph_results_spearman.csv")
+hyp_res
+
+hyp_filtered <- read_csv("../output/filtered_hypergraph_results_spearman.csv")
+hyp_filtered
+
+loeuf <- read_tsv("../data/loeuf/gnomad.v4.1.constraint_metrics.tsv")
+loeuf
+```
+
+Column of interest from the constraint metrics is `lof.oe_ci.upper`, representing LOEUF: upper bound of 90% confidence interval for o/e ratio for high confidence pLoF variants (lower values indicate more constrained) ([gnomad_constraint_readme](https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/constraint/README.txt)).
+- according to that: < 0.6 -> significance threshold for constraint, the lower the more constrained
+
+```{r}
+# Filter LOEUF scores 
+loeuf_filtered <- loeuf %>%
+  select(chromosome, gene, transcript, canonical, lof.oe_ci.upper, lof.oe_ci.upper_bin_decile) %>%
+  filter(lof.oe_ci.upper < 0.6, canonical == TRUE) %>%
+  distinct()
+
+# Map LOEUF scores to unfiltered hypergraph results
+loeuf_mapped_all <- inner_join(loeuf_filtered, hyp_res, by = "gene") %>%
+  distinct()
+
+write_csv(loeuf_mapped_all, "../output/TE_all_rank_LOEUF_mapped_genes.csv", col_names = TRUE)
+
+# Map LOEUF scores to filtered hypergraph results
+loeuf_mapped_filtered <- inner_join(loeuf_filtered, hyp_filtered, by = "gene") %>%
+  distinct()
+
+write_csv(loeuf_mapped_filtered, "../output/TE_filtered_rank_LOEUF_mapped_genes.csv", col_names = TRUE)
+```
+
+```{r}
+loeuf_mapped_all %>%
+  filter(leiden == 0) %>%
+  ggplot() + aes(x = rowsum, y = norm_rank) + geom_point() + theme_minimal()
+
+# All genes are constrained with canonical transcripts
+loeuf_mapped_all %>%
+  count("lof.oe_ci.upper") %>%
+  arrange(desc(lof.oe_ci.upper))
+
+# How many genes are constrained with canonical transcripts?
+loeuf_mapped_all %>%
+  count(gene) %>%
+  distinct(gene) #3356
+
+loeuf_mapped_filtered %>%
+  count(gene) %>%
+  distinct(gene) #2257
+```
+
+*Visualisation of Hypernetwork Rowsums*
+- rowsums are calculated from the hypernetwork adjacency matrix -> indicate how strongly interconnected a gene is to other genes
+- as it's based on an adjacency matrix and not a binary incidence matrix, this represent the total weight of connections a gene has
+- peak in the low rowsums -> indicates a sparse connection between plenty of genes
+- long tails -> indicate that hub genes are strongly interconnected
+- a bimodal shape -> two modules -> indicates two strongly connected gene groups
+
+```{r}
+# Hypernetwork Rowsums
+ggdensity(loeuf_mapped_all, 
+          x = "norm_rank", 
+          #color = "LOEUF", fill = "LOEUF", # Removed this row
+          title = "Hypernetwork Normalised Rank Distribution",
+          ylab = "Density",
+          xlab = "Normalised Rank") + 
+  scale_colour_npg() + scale_fill_npg() +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+
+ggsave("../output/TE_norm_rank_density.tiff", height = 7, width = 7)
+```
+
+```{r}
+# Genetic Constraint
+loeuf_mapped_all %>%
+  drop_na(chromosome) %>%
+  filter(gene %in% c("ZFHX3")) %>%
+  ggdotplot(., "cell_type", "norm_rank",
+            add = "boxplot",
+            color = "gene", fill = "gene",
+            title = "Genetic constraint in first-trimester placenta",
+            ylab = "Normalised rank",
+            xlab = "Cell type") +
+  scale_colour_npg() + scale_fill_npg() + theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.title = element_blank()
+  ) + facet_wrap(~chromosome)
+
+#ggsave("../output/hypergraph_analysis/plots/constraint_dotplot_genes_w_boxplot.tiff", height = 7, width = 10)
+
+loeuf_mapped_all %>%
+  #filter(LOEUF == "Constrained") %>%
+  drop_na(chromosome) %>%
+  ggdotplot(., "cell_type", "norm_rank",
+            add = "boxplot",
+            color = "transcript", fill = "transcript",
+            title = "Genetic constraint in first-trimester placenta",
+            ylab = "Normalised rank",
+            xlab = "Cell type") +
+  scale_colour_npg() + scale_fill_npg() + theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.title = element_blank()
+  ) + facet_wrap(~chromosome)
+
+#ggsave("../output/hypergraph_analysis/plots/constraint_dotplot_transcripts_w_boxplot.tiff", height = 7, width = 10)
+
+# Leiden
+loeuf_mapped %>%
+  #filter(LOEUF == "Constrained") %>%
+  drop_na(chromosome) %>%
+  ggdotplot(., "cell_type", "norm_rank",
+            add = "boxplot",
+            color = "gene", fill = "gene",
+            title = "Genetic constraint in first-trimester placenta",
+            ylab = "Normalised rank",
+            xlab = "Cell type") +
+  scale_colour_npg() + scale_fill_npg() + theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.title = element_blank()
+  ) + facet_wrap(~leiden)
+
+#ggsave("../output/hypergraph_analysis/plots/leiden_constraint_dotplot_genes_w_boxplot.tiff", height = 7, width = 10)
+```
+
+Following LOEUF mapping, the leiden cluster 4 is the only cluster in which two genes have been mapped to significant LOEUF scores with canonical transcripts. 
+
+```{r}
+# Violin plot of ranks
+loeuf_mapped_all %>%
+  group_by(tissue) %>%
+  compare_means(norm_rank ~ cell_type, data = ., method = "wilcox.test")
+my_comparisons <- list(c("EVT", "STB", "CTB", "HB", "FB", "END", "MIC", "TE", "EPI", "ICM", "HYPO"))
+
+loeuf_mapped_all %>%
+  #filter(LOEUF == "Constrained") %>%
+  ggviolin(., "cell_type", "norm_rank", 
+           color = "tissue", 
+           add = "boxplot", 
+           title = "Genetic constraint in blastocyst and first-trimester placenta",
+           ylab = "Normalised rank",
+           xlab = "Cell type") + 
+  scale_colour_npg() + scale_fill_npg() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.title = element_blank()) + 
+  stat_compare_means(comparisons = my_comparisons) #, label.y = c(123, 135, 147)) + scale_y_continuous(limits = c(60, 155))
+
+#ggsave("../output/hypergraph_analysis/plots/constraint_violin_blastocyst_placenta.tiff", height = 7, width = 8)
+```
+
+```{r}
+
+```
+
+
+

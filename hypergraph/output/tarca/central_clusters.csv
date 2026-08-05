@@ -1,0 +1,882 @@
+target,trimester,central_cluster
+AREG,Second,sPTD-specific
+ARI3A,Second,sPTD-specific
+ARP19,Second,sPTD-specific
+AURKB,Second,sPTD-specific
+Aflatoxin B1 aldehyde reductase,Second,sPTD-specific
+Azurocidin,Second,sPTD-specific
+BCAR3,Second,sPTD-specific
+CD39,Second,sPTD-specific
+CDC37,Second,sPTD-specific
+CPNE1,Second,sPTD-specific
+CaMKK alpha,Second,sPTD-specific
+Carbonic Anhydrase X,Second,sPTD-specific
+DHH,Second,sPTD-specific
+EDAR,Second,sPTD-specific
+EF-1-beta,Second,sPTD-specific
+ERBB3,Second,sPTD-specific
+ERK-1,Second,sPTD-specific
+Endostatin,Second,sPTD-specific
+FGF-16,Second,sPTD-specific
+FGF-8A,Second,sPTD-specific
+FGF7,Second,sPTD-specific
+FLRT1,Second,sPTD-specific
+Flt-3,Second,sPTD-specific
+HSP 40,Second,sPTD-specific
+IFN-g,Second,sPTD-specific
+IGF-II receptor,Second,sPTD-specific
+IL-19,Second,sPTD-specific
+IL-2 sRg,Second,sPTD-specific
+IL-3 Ra,Second,sPTD-specific
+JAM-C,Second,sPTD-specific
+Kallikrein 6,Second,sPTD-specific
+LDH-H 1,Second,sPTD-specific
+Lysozyme,Second,sPTD-specific
+MAPKAPK3,Second,sPTD-specific
+MK01,Second,sPTD-specific
+Met,Second,sPTD-specific
+NACA,Second,sPTD-specific
+NG36,Second,sPTD-specific
+NMT1,Second,sPTD-specific
+OSM,Second,sPTD-specific
+P-Cadherin,Second,sPTD-specific
+PGP9.5,Second,sPTD-specific
+PLPP,Second,sPTD-specific
+PPAC,Second,sPTD-specific
+PPIE,Second,sPTD-specific
+PSA6,Second,sPTD-specific
+PSME1,Second,sPTD-specific
+RAN,Second,sPTD-specific
+SBDS,Second,sPTD-specific
+SE6L2,Second,sPTD-specific
+SGTA,Second,sPTD-specific
+Sphingosine kinase 1,Second,sPTD-specific
+Stress-induced-phosphoprotein 1,Second,sPTD-specific
+TGF-b R III,Second,sPTD-specific
+Testican-1,Second,sPTD-specific
+Thrombospondin-1,Second,sPTD-specific
+UB2L3,Second,sPTD-specific
+UBE2N,Second,sPTD-specific
+UFC1,Second,sPTD-specific
+VEGF-C,Second,sPTD-specific
+prostatic binding protein,Second,sPTD-specific
+uPA,Second,sPTD-specific
+17-beta-HSD 1,Second,term-specific
+4-1BB,Second,term-specific
+40S ribosomal protein SA,Second,term-specific
+ABL1,Second,term-specific
+ABL2,Second,term-specific
+ACTH,Second,term-specific
+ADAMTS-4,Second,term-specific
+ADAMTS-5,Second,term-specific
+AGR2,Second,term-specific
+AMHR2,Second,term-specific
+AMNLS,Second,term-specific
+AMPK a1b1g1,Second,term-specific
+ASGR1,Second,term-specific
+ATP synthase beta chain,Second,term-specific
+ATS1,Second,term-specific
+ATS15,Second,term-specific
+Activated Protein C,Second,term-specific
+Activin RIB,Second,term-specific
+Afamin,Second,term-specific
+"Alkaline phosphatase, bone",Second,term-specific
+Angiotensinogen,Second,term-specific
+Arylsulfatase A,Second,term-specific
+Aurora kinase A,Second,term-specific
+B7,Second,term-specific
+B7-H2,Second,term-specific
+BAFF,Second,term-specific
+BASI,Second,term-specific
+BCAM,Second,term-specific
+BMP RII,Second,term-specific
+BMPER,Second,term-specific
+BMPR1A,Second,term-specific
+BMX,Second,term-specific
+BNP,Second,term-specific
+BTG,Second,term-specific
+C1q,Second,term-specific
+C2,Second,term-specific
+C34 gp41 HIV Fragment,Second,term-specific
+C4,Second,term-specific
+C4b,Second,term-specific
+"C5b, 6 Complex",Second,term-specific
+CATE,Second,term-specific
+CBPE,Second,term-specific
+CBX5,Second,term-specific
+CD30 Ligand,Second,term-specific
+CD48,Second,term-specific
+CD70,Second,term-specific
+CDK1/cyclin B,Second,term-specific
+CDK2/cyclin A,Second,term-specific
+CDK5/p35,Second,term-specific
+CDK8/cyclin C,Second,term-specific
+CG073,Second,term-specific
+CHK1,Second,term-specific
+CK-MB,Second,term-specific
+CK2-A1:B,Second,term-specific
+CK2-A2:B,Second,term-specific
+CLC4K,Second,term-specific
+CLF-1/CLC Complex,Second,term-specific
+CNTF,Second,term-specific
+CNTN2,Second,term-specific
+COLEC12,Second,term-specific
+COX-2,Second,term-specific
+CRDL1,Second,term-specific
+CS084,Second,term-specific
+CSF-1,Second,term-specific
+CTGF,Second,term-specific
+Cadherin-5,Second,term-specific
+Calcineurin B a,Second,term-specific
+Carbonic anhydrase VII,Second,term-specific
+Cathepsin G,Second,term-specific
+Coagulation Factor IX,Second,term-specific
+Coagulation Factor IXab,Second,term-specific
+Coagulation Factor Xa,Second,term-specific
+Contactin-4,Second,term-specific
+Contactin-5,Second,term-specific
+Cyclin B1,Second,term-specific
+Cyclophilin A,Second,term-specific
+Cyclophilin F,Second,term-specific
+Cystatin C,Second,term-specific
+Cytochrome P450 3A4,Second,term-specific
+D-dimer,Second,term-specific
+DAF,Second,term-specific
+DAN,Second,term-specific
+DBNL,Second,term-specific
+DEAD-box protein 19B,Second,term-specific
+DKK1,Second,term-specific
+DKK3,Second,term-specific
+DLC8,Second,term-specific
+DLL4,Second,term-specific
+DMP1,Second,term-specific
+DPP2,Second,term-specific
+DRAK2,Second,term-specific
+DRR1,Second,term-specific
+DSC3,Second,term-specific
+DYRK3,Second,term-specific
+DcR3,Second,term-specific
+Dkk-4,Second,term-specific
+Dtk,Second,term-specific
+EDA,Second,term-specific
+EG-VEGF,Second,term-specific
+EMR2,Second,term-specific
+ENA-78,Second,term-specific
+EP15R,Second,term-specific
+EPHA3,Second,term-specific
+ER,Second,term-specific
+ERBB2,Second,term-specific
+ERBB4,Second,term-specific
+Endoglin,Second,term-specific
+Enterokinase,Second,term-specific
+Eotaxin-2,Second,term-specific
+EphA5,Second,term-specific
+EphB4,Second,term-specific
+Ephrin-A4,Second,term-specific
+Ephrin-A5,Second,term-specific
+Epithelial cell kinase,Second,term-specific
+F229A,Second,term-specific
+FAK1,Second,term-specific
+FAM107B,Second,term-specific
+FCAR,Second,term-specific
+FCG2A/B,Second,term-specific
+FCRL3,Second,term-specific
+FGF-10,Second,term-specific
+FGF-12,Second,term-specific
+FGF-17,Second,term-specific
+FGF-18,Second,term-specific
+FGF-20,Second,term-specific
+FGF-5,Second,term-specific
+FGF-8B,Second,term-specific
+FGF9,Second,term-specific
+FGFR-2,Second,term-specific
+FGFR-3,Second,term-specific
+FSH,Second,term-specific
+Factor B,Second,term-specific
+Factor H,Second,term-specific
+Ferritin,Second,term-specific
+Fibrinogen,Second,term-specific
+Flt3 ligand,Second,term-specific
+Fucosyltransferase 3,Second,term-specific
+G-CSF,Second,term-specific
+GAS1,Second,term-specific
+GCKR,Second,term-specific
+GFRa-1,Second,term-specific
+GFRa-3,Second,term-specific
+GHC2,Second,term-specific
+GIIE,Second,term-specific
+GITR,Second,term-specific
+GNT2C,Second,term-specific
+GP114,Second,term-specific
+GPC2,Second,term-specific
+GRB2-related adapter protein 2,Second,term-specific
+GV,Second,term-specific
+GX,Second,term-specific
+Galectin-8,Second,term-specific
+Granzyme B,Second,term-specific
+Granzyme H,Second,term-specific
+HCK,Second,term-specific
+HDGR2,Second,term-specific
+HIV-2 Rev,Second,term-specific
+HMGR,Second,term-specific
+HPV E7 Type 16,Second,term-specific
+HTRA2,Second,term-specific
+HVEM,Second,term-specific
+Hemoglobin,Second,term-specific
+Histone H1.2,Second,term-specific
+Histone H2A.z,Second,term-specific
+ICOS,Second,term-specific
+IF4A3,Second,term-specific
+IFN-aA,Second,term-specific
+IFN-g R1,Second,term-specific
+IFN-lambda 2,Second,term-specific
+IGF-I,Second,term-specific
+IL-1 sR9,Second,term-specific
+IL-10,Second,term-specific
+IL-10 Rb,Second,term-specific
+IL-11,Second,term-specific
+IL-12,Second,term-specific
+IL-12 RB2,Second,term-specific
+IL-12 Rb1,Second,term-specific
+IL-13,Second,term-specific
+IL-15 Ra,Second,term-specific
+IL-17,Second,term-specific
+IL-17 RD,Second,term-specific
+IL-17B,Second,term-specific
+IL-17D,Second,term-specific
+IL-18 BPa,Second,term-specific
+IL-18 Ra,Second,term-specific
+IL-18 Rb,Second,term-specific
+IL-1Rrp2,Second,term-specific
+IL-20 Ra,Second,term-specific
+IL-23,Second,term-specific
+IL-27,Second,term-specific
+IL-4,Second,term-specific
+IL-4 sR,Second,term-specific
+IL-7,Second,term-specific
+IL-7 Ra,Second,term-specific
+ILT-4,Second,term-specific
+IMB1,Second,term-specific
+ISM1,Second,term-specific
+IgD,Second,term-specific
+IgE,Second,term-specific
+IgG,Second,term-specific
+IgM,Second,term-specific
+Integrin a1b1,Second,term-specific
+Integrin aVb5,Second,term-specific
+JAK2,Second,term-specific
+JAML1,Second,term-specific
+K-ras,Second,term-specific
+KI2L4,Second,term-specific
+KI3S1,Second,term-specific
+KIAP,Second,term-specific
+KIRR3,Second,term-specific
+Kallikrein 11,Second,term-specific
+Kallikrein 4,Second,term-specific
+LIF sR,Second,term-specific
+LIMP II,Second,term-specific
+LIN7B,Second,term-specific
+LRRT1,Second,term-specific
+LRRT3,Second,term-specific
+LSAMP,Second,term-specific
+Lamin-B1,Second,term-specific
+Laminin,Second,term-specific
+Layilin,Second,term-specific
+Livin B,Second,term-specific
+Lymphotactin,Second,term-specific
+Lymphotoxin a1/b2,Second,term-specific
+Lymphotoxin a2/b1,Second,term-specific
+M2-PK,Second,term-specific
+MATK,Second,term-specific
+MCP-1,Second,term-specific
+MCP-2,Second,term-specific
+MCP-4,Second,term-specific
+MEPE,Second,term-specific
+MIP-3a,Second,term-specific
+MK13,Second,term-specific
+MMP-16,Second,term-specific
+MO2R1,Second,term-specific
+MOZ,Second,term-specific
+Macrophage scavenger receptor,Second,term-specific
+NANOG,Second,term-specific
+NDP kinase B,Second,term-specific
+NKG2D,Second,term-specific
+NKp30,Second,term-specific
+NR1D1,Second,term-specific
+NRX1B,Second,term-specific
+NRX3B,Second,term-specific
+NSF1C,Second,term-specific
+Nectin-like protein 1,Second,term-specific
+Nectin-like protein 2,Second,term-specific
+Neurotrophin-5,Second,term-specific
+NovH,Second,term-specific
+Nr-CAM,Second,term-specific
+ON,Second,term-specific
+OX2G,Second,term-specific
+OX40 Ligand,Second,term-specific
+Olfactomedin-4,Second,term-specific
+PACA,Second,term-specific
+PACAP-38,Second,term-specific
+PAK7,Second,term-specific
+PBP,Second,term-specific
+PCNA,Second,term-specific
+PDE7A,Second,term-specific
+PDE9A,Second,term-specific
+PDGF-BB,Second,term-specific
+PDGF-CC,Second,term-specific
+PESC,Second,term-specific
+PIK3CA/PIK3R1,Second,term-specific
+PIM1,Second,term-specific
+PKC-D,Second,term-specific
+PKC-G,Second,term-specific
+PLK-1,Second,term-specific
+PPIB,Second,term-specific
+PRKACA,Second,term-specific
+PSA2,Second,term-specific
+PTP-1C,Second,term-specific
+Parathyroid Hormone1-34,Second,term-specific
+Persephin,Second,term-specific
+Plasmin,Second,term-specific
+Prolactin Receptor,Second,term-specific
+Properdin,Second,term-specific
+Protein disulfide-isomerase,Second,term-specific
+RANTES,Second,term-specific
+RELT,Second,term-specific
+RGM-C,Second,term-specific
+ROBO3,Second,term-specific
+RTN4,Second,term-specific
+RUXF,Second,term-specific
+Rb,Second,term-specific
+SHC1,Second,term-specific
+SLAF5,Second,term-specific
+SLPI,Second,term-specific
+SPTA2,Second,term-specific
+SREC-II,Second,term-specific
+SSRP1,Second,term-specific
+ST4S6,Second,term-specific
+STX1a,Second,term-specific
+Secretin,Second,term-specific
+Sialoadhesin,Second,term-specific
+Survivin,Second,term-specific
+TAJ,Second,term-specific
+TAK1-TAB1,Second,term-specific
+TBP,Second,term-specific
+TCPTP,Second,term-specific
+TGF-b2,Second,term-specific
+TGF-b3,Second,term-specific
+TIMD3,Second,term-specific
+TIMP-3,Second,term-specific
+TLR4:MD-2 complex,Second,term-specific
+TNF sR-I,Second,term-specific
+TNF sR-II,Second,term-specific
+TNF-a,Second,term-specific
+TNF-b,Second,term-specific
+TNFSF15,Second,term-specific
+TNFSF18,Second,term-specific
+TNR4,Second,term-specific
+TPSG1,Second,term-specific
+TS,Second,term-specific
+TSH,Second,term-specific
+Topoisomerase I,Second,term-specific
+ULBP-2,Second,term-specific
+UNC5H3,Second,term-specific
+UNC5H4,Second,term-specific
+VCAM-1,Second,term-specific
+VEGF,Second,term-specific
+VWC2L,Second,term-specific
+WFKN1,Second,term-specific
+WISP-1,Second,term-specific
+WNT7A,Second,term-specific
+XEDAR,Second,term-specific
+a2-HS-Glycoprotein,Second,term-specific
+annexin VI,Second,term-specific
+b-ECGF,Second,term-specific
+b-Endorphin,Second,term-specific
+b2-Microglobulin,Second,term-specific
+calgranulin B,Second,term-specific
+carbonic anhydrase II,Second,term-specific
+dopa decarboxylase,Second,term-specific
+gpIIbIIIa,Second,term-specific
+hnRNP K,Second,term-specific
+kallikrein 13,Second,term-specific
+kallikrein 5,Second,term-specific
+paraoxonase 1,Second,term-specific
+sCD4,Second,term-specific
+"transcription factor MLR1, isoform CRA_b",Second,term-specific
+41,Third,sPTD-specific
+4EBP2,Third,sPTD-specific
+6-Phosphogluconate dehydrogenase,Third,sPTD-specific
+6Ckine,Third,sPTD-specific
+ACE2,Third,sPTD-specific
+AIF1,Third,sPTD-specific
+ALT,Third,sPTD-specific
+ARGI1,Third,sPTD-specific
+ARI3A,Third,sPTD-specific
+ARP19,Third,sPTD-specific
+AURKB,Third,sPTD-specific
+Albumin,Third,sPTD-specific
+Angiopoietin-4,Third,sPTD-specific
+Angiostatin,Third,sPTD-specific
+Apo A-I,Third,sPTD-specific
+Azurocidin,Third,sPTD-specific
+B7-2,Third,sPTD-specific
+BCL2-like 1 protein,Third,sPTD-specific
+BMP-6,Third,sPTD-specific
+BSSP4,Third,sPTD-specific
+Bcl-2,Third,sPTD-specific
+Bone proteoglycan II,Third,sPTD-specific
+C1-Esterase Inhibitor,Third,sPTD-specific
+CAMK2A,Third,sPTD-specific
+CAMK2B,Third,sPTD-specific
+CAMK2D,Third,sPTD-specific
+CD109,Third,sPTD-specific
+CD30,Third,sPTD-specific
+CD39,Third,sPTD-specific
+"CD40 ligand, soluble",Third,sPTD-specific
+CFC1,Third,sPTD-specific
+CLM6,Third,sPTD-specific
+COMMD7,Third,sPTD-specific
+CONA1,Third,sPTD-specific
+CRTAM,Third,sPTD-specific
+CTLA-4,Third,sPTD-specific
+"CXCL16, soluble",Third,sPTD-specific
+Cadherin E,Third,sPTD-specific
+Cadherin-12,Third,sPTD-specific
+Cadherin-5,Third,sPTD-specific
+Carbonic Anhydrase IV,Third,sPTD-specific
+Carbonic Anhydrase X,Third,sPTD-specific
+Carbonic anhydrase 6,Third,sPTD-specific
+Cathepsin S,Third,sPTD-specific
+Chk2,Third,sPTD-specific
+Chymase,Third,sPTD-specific
+Coagulation Factor X,Third,sPTD-specific
+DAPK2,Third,sPTD-specific
+DC-SIGNR,Third,sPTD-specific
+DLL1,Third,sPTD-specific
+Discoidin domain receptor 2,Third,sPTD-specific
+EDA,Third,sPTD-specific
+EDAR,Third,sPTD-specific
+EF-1-beta,Third,sPTD-specific
+EMAP-2,Third,sPTD-specific
+ENTP3,Third,sPTD-specific
+EPO-R,Third,sPTD-specific
+Endoglin,Third,sPTD-specific
+Endothelin-converting enzyme 1,Third,sPTD-specific
+FGF-4,Third,sPTD-specific
+FGF-6,Third,sPTD-specific
+FGF-8A,Third,sPTD-specific
+FLRT1,Third,sPTD-specific
+FST,Third,sPTD-specific
+FSTL3,Third,sPTD-specific
+FYN,Third,sPTD-specific
+Flt-3,Third,sPTD-specific
+Fractalkine/CX3CL-1,Third,sPTD-specific
+GA733-1 protein,Third,sPTD-specific
+GDF-11,Third,sPTD-specific
+GIB,Third,sPTD-specific
+GRN,Third,sPTD-specific
+Galectin-4,Third,sPTD-specific
+Glucocorticoid receptor,Third,sPTD-specific
+Glutamate carboxypeptidase,Third,sPTD-specific
+Glypican 3,Third,sPTD-specific
+H6ST1,Third,sPTD-specific
+HAI-1,Third,sPTD-specific
+HB-EGF,Third,sPTD-specific
+HCC-4,Third,sPTD-specific
+HIPK3,Third,sPTD-specific
+HNRPQ,Third,sPTD-specific
+HO-2,Third,sPTD-specific
+HPG-,Third,sPTD-specific
+Hat1,Third,sPTD-specific
+I-309,Third,sPTD-specific
+IDS,Third,sPTD-specific
+IFN-lambda 1,Third,sPTD-specific
+IL-1 R AcP,Third,sPTD-specific
+IL-11 RA,Third,sPTD-specific
+IL-13 Ra1,Third,sPTD-specific
+IL-18 BPa,Third,sPTD-specific
+IL-18 Ra,Third,sPTD-specific
+IL-19,Third,sPTD-specific
+IL-1F7,Third,sPTD-specific
+IL-22,Third,sPTD-specific
+IL-23 R,Third,sPTD-specific
+IL-3 Ra,Third,sPTD-specific
+IL-34,Third,sPTD-specific
+IMDH2,Third,sPTD-specific
+IR,Third,sPTD-specific
+KIF23,Third,sPTD-specific
+KREM2,Third,sPTD-specific
+KYNU,Third,sPTD-specific
+Kallikrein 6,Third,sPTD-specific
+Kallistatin,Third,sPTD-specific
+Keratin 18,Third,sPTD-specific
+LD78-beta,Third,sPTD-specific
+LG3BP,Third,sPTD-specific
+LRIG3,Third,sPTD-specific
+LRP8,Third,sPTD-specific
+LY86,Third,sPTD-specific
+LY9,Third,sPTD-specific
+Lactoferrin,Third,sPTD-specific
+Layilin,Third,sPTD-specific
+Lymphotoxin b R,Third,sPTD-specific
+Lysozyme,Third,sPTD-specific
+MATN3,Third,sPTD-specific
+MBD4,Third,sPTD-specific
+MED-1,Third,sPTD-specific
+MFRP,Third,sPTD-specific
+MIA,Third,sPTD-specific
+MIF,Third,sPTD-specific
+MK12,Third,sPTD-specific
+MMP-1,Third,sPTD-specific
+MMP-2,Third,sPTD-specific
+MMP-3,Third,sPTD-specific
+MSP R,Third,sPTD-specific
+Macrophage mannose receptor,Third,sPTD-specific
+Mesothelin,Third,sPTD-specific
+Met,Third,sPTD-specific
+Mn SOD,Third,sPTD-specific
+"Myokinase, human",Third,sPTD-specific
+NAGK,Third,sPTD-specific
+NCAM-120,Third,sPTD-specific
+NCK1,Third,sPTD-specific
+NKp46,Third,sPTD-specific
+NUDC3,Third,sPTD-specific
+Neurotrophin-3,Third,sPTD-specific
+Noggin,Third,sPTD-specific
+OPG,Third,sPTD-specific
+OSM,Third,sPTD-specific
+P-Cadherin,Third,sPTD-specific
+PAK3,Third,sPTD-specific
+PAPP-A,Third,sPTD-specific
+PDE4D,Third,sPTD-specific
+PFD5,Third,sPTD-specific
+PGCB,Third,sPTD-specific
+PGP9.5,Third,sPTD-specific
+PKC-Z,Third,sPTD-specific
+PLXC1,Third,sPTD-specific
+PPAC,Third,sPTD-specific
+PPase,Third,sPTD-specific
+PSA,Third,sPTD-specific
+PSA1,Third,sPTD-specific
+PSA6,Third,sPTD-specific
+PSD7,Third,sPTD-specific
+PSMA,Third,sPTD-specific
+PSME1,Third,sPTD-specific
+PTP-1B,Third,sPTD-specific
+PTP-1C,Third,sPTD-specific
+Periostin,Third,sPTD-specific
+Peroxiredoxin-1,Third,sPTD-specific
+Peroxiredoxin-6,Third,sPTD-specific
+RAD51,Third,sPTD-specific
+RASA1,Third,sPTD-specific
+RS7,Third,sPTD-specific
+SCF sR,Third,sPTD-specific
+SHBG,Third,sPTD-specific
+SHP-2,Third,sPTD-specific
+SLPI,Third,sPTD-specific
+SOD,Third,sPTD-specific
+SP-D,Third,sPTD-specific
+SPARCL1,Third,sPTD-specific
+STK16,Third,sPTD-specific
+STRATIFIN,Third,sPTD-specific
+Semaphorin-6A,Third,sPTD-specific
+Spondin-1,Third,sPTD-specific
+TBK1,Third,sPTD-specific
+TCCR,Third,sPTD-specific
+TEC,Third,sPTD-specific
+TFF3,Third,sPTD-specific
+TGF-b R II,Third,sPTD-specific
+TMA,Third,sPTD-specific
+TSG-6,Third,sPTD-specific
+TSLP,Third,sPTD-specific
+TSLP R,Third,sPTD-specific
+Testican-1,Third,sPTD-specific
+Testican-2,Third,sPTD-specific
+Thymidine kinase,Third,sPTD-specific
+TrATPase,Third,sPTD-specific
+TrkB,Third,sPTD-specific
+Tropomyosin 2,Third,sPTD-specific
+UBE2N,Third,sPTD-specific
+ULBP-3,Third,sPTD-specific
+VEGF sR2,Third,sPTD-specific
+VEGF sR3,Third,sPTD-specific
+VEGF-C,Third,sPTD-specific
+Vasoactive Intestinal Peptide,Third,sPTD-specific
+WFKN2,Third,sPTD-specific
+WIF-1,Third,sPTD-specific
+YES,Third,sPTD-specific
+ZAP70,Third,sPTD-specific
+complement factor H-related 5,Third,sPTD-specific
+discoidin domain receptor 1,Third,sPTD-specific
+eIF-5,Third,sPTD-specific
+hnRNP A/B,Third,sPTD-specific
+hnRNP A2/B1,Third,sPTD-specific
+sICAM-1,Third,sPTD-specific
+sICAM-2,Third,sPTD-specific
+sICAM-5,Third,sPTD-specific
+sRANKL,Third,sPTD-specific
+sTie-1,Third,sPTD-specific
+suPAR,Third,sPTD-specific
+tau,Third,sPTD-specific
+uPA,Third,sPTD-specific
+40S ribosomal protein SA,Third,term-specific
+ABL1,Third,term-specific
+ACTH,Third,term-specific
+ADAMTS-5,Third,term-specific
+AIP,Third,term-specific
+AMHR2,Third,term-specific
+AMNLS,Third,term-specific
+AMPK a1b1g1,Third,term-specific
+ARSB,Third,term-specific
+ASM3A,Third,term-specific
+ATP synthase beta chain,Third,term-specific
+ATS15,Third,term-specific
+Activated Protein C,Third,term-specific
+Activin RIB,Third,term-specific
+Antithrombin III,Third,term-specific
+Artemin,Third,term-specific
+Arylsulfatase A,Third,term-specific
+BAFF,Third,term-specific
+BASI,Third,term-specific
+BDNF,Third,term-specific
+BMPER,Third,term-specific
+BNP,Third,term-specific
+BNP-32,Third,term-specific
+BTG,Third,term-specific
+C1q,Third,term-specific
+C34 gp41 HIV Fragment,Third,term-specific
+C4,Third,term-specific
+C4b,Third,term-specific
+"C5b, 6 Complex",Third,term-specific
+CBG,Third,term-specific
+CD226,Third,term-specific
+CD70,Third,term-specific
+CDK8/cyclin C,Third,term-specific
+CG073,Third,term-specific
+CHST6,Third,term-specific
+CK-MB,Third,term-specific
+CK2-A2:B,Third,term-specific
+CLC4K,Third,term-specific
+COLEC12,Third,term-specific
+COX-2,Third,term-specific
+CRIS3,Third,term-specific
+CS084,Third,term-specific
+CSF-1,Third,term-specific
+Cadherin-2,Third,term-specific
+Cadherin-6,Third,term-specific
+Calcineurin B a,Third,term-specific
+Carbonic anhydrase 9,Third,term-specific
+Carbonic anhydrase VII,Third,term-specific
+Caspase-2,Third,term-specific
+Cathepsin G,Third,term-specific
+Coagulation Factor IX,Third,term-specific
+Contactin-5,Third,term-specific
+Cyclin B1,Third,term-specific
+D-dimer,Third,term-specific
+DAN,Third,term-specific
+DEAD-box protein 19B,Third,term-specific
+DKK1,Third,term-specific
+DLC8,Third,term-specific
+DRAK2,Third,term-specific
+DSC3,Third,term-specific
+Dkk-4,Third,term-specific
+Dynactin subunit 2,Third,term-specific
+EG-VEGF,Third,term-specific
+EMR2,Third,term-specific
+ENA-78,Third,term-specific
+ER,Third,term-specific
+ERBB2,Third,term-specific
+ERBB4,Third,term-specific
+Enterokinase,Third,term-specific
+Eotaxin-2,Third,term-specific
+EphA5,Third,term-specific
+EphB4,Third,term-specific
+F229A,Third,term-specific
+FABPE,Third,term-specific
+FAK1,Third,term-specific
+FAM107B,Third,term-specific
+FCG2A/B,Third,term-specific
+FCRL3,Third,term-specific
+FGF-10,Third,term-specific
+FGF-12,Third,term-specific
+FGF-18,Third,term-specific
+FGF-20,Third,term-specific
+FGF-5,Third,term-specific
+FGF-8,Third,term-specific
+FGF-8B,Third,term-specific
+FGF-8F,Third,term-specific
+FGF9,Third,term-specific
+FGFR-2,Third,term-specific
+FGFR-3,Third,term-specific
+FSH,Third,term-specific
+Factor H,Third,term-specific
+"Fas ligand, soluble",Third,term-specific
+Ferritin,Third,term-specific
+Fibrinogen,Third,term-specific
+Fucosyltransferase 3,Third,term-specific
+G-CSF,Third,term-specific
+GAS1,Third,term-specific
+GCKR,Third,term-specific
+GDF-9,Third,term-specific
+GFAP,Third,term-specific
+GHC2,Third,term-specific
+GIIE,Third,term-specific
+GNT2C,Third,term-specific
+GP114,Third,term-specific
+GPC2,Third,term-specific
+GPNMB,Third,term-specific
+GSTA3,Third,term-specific
+GX,Third,term-specific
+Galectin-8,Third,term-specific
+Granzyme B,Third,term-specific
+Granzyme H,Third,term-specific
+HDGR2,Third,term-specific
+HIV-2 Rev,Third,term-specific
+HMGR,Third,term-specific
+HPV E7 Type 16,Third,term-specific
+Hemoglobin,Third,term-specific
+Histone H1.2,Third,term-specific
+Histone H2A.z,Third,term-specific
+ICOS,Third,term-specific
+IF4A3,Third,term-specific
+IFN-aA,Third,term-specific
+IFN-g R1,Third,term-specific
+IFN-lambda 2,Third,term-specific
+IFNL4,Third,term-specific
+IGF-I,Third,term-specific
+IGFBP-7,Third,term-specific
+IL-10,Third,term-specific
+IL-12,Third,term-specific
+IL-12 RB2,Third,term-specific
+IL-12 Rb1,Third,term-specific
+IL-13,Third,term-specific
+IL-15 Ra,Third,term-specific
+IL-17 RC,Third,term-specific
+IL-17B,Third,term-specific
+IL-17B R,Third,term-specific
+IL-17D,Third,term-specific
+IL-17E,Third,term-specific
+IL-1Rrp2,Third,term-specific
+IL-1b,Third,term-specific
+IL-20 Ra,Third,term-specific
+IL-23,Third,term-specific
+IL-27,Third,term-specific
+IL-6,Third,term-specific
+IL-7,Third,term-specific
+IL22RA1,Third,term-specific
+ILT-4,Third,term-specific
+ISM1,Third,term-specific
+IgD,Third,term-specific
+IgE,Third,term-specific
+IgG,Third,term-specific
+IgM,Third,term-specific
+Integrin a1b1,Third,term-specific
+Integrin aVb5,Third,term-specific
+JAG2,Third,term-specific
+JAK2,Third,term-specific
+JAML1,Third,term-specific
+K-ras,Third,term-specific
+KI3L2,Third,term-specific
+KI3S1,Third,term-specific
+KIAP,Third,term-specific
+KIRR3,Third,term-specific
+KLRF1,Third,term-specific
+Kallikrein 11,Third,term-specific
+Kallikrein 4,Third,term-specific
+LIMP II,Third,term-specific
+LRRT1,Third,term-specific
+LRRT3,Third,term-specific
+Laminin,Third,term-specific
+Livin B,Third,term-specific
+Lymphotoxin a1/b2,Third,term-specific
+MATK,Third,term-specific
+MCP-1,Third,term-specific
+MCP-2,Third,term-specific
+MCP-3,Third,term-specific
+MCP-4,Third,term-specific
+MEPE,Third,term-specific
+MIS,Third,term-specific
+MK13,Third,term-specific
+MMP-10,Third,term-specific
+MMP-16,Third,term-specific
+MO2R1,Third,term-specific
+Macrophage scavenger receptor,Third,term-specific
+Mammaglobin 2,Third,term-specific
+NANOG,Third,term-specific
+NKG2D,Third,term-specific
+NKp30,Third,term-specific
+NR1D1,Third,term-specific
+NRP1,Third,term-specific
+NRX3A,Third,term-specific
+Neurotrophin-5,Third,term-specific
+NovH,Third,term-specific
+OX40 Ligand,Third,term-specific
+Olfactomedin-4,Third,term-specific
+PACA,Third,term-specific
+PACAP-27,Third,term-specific
+PACAP-38,Third,term-specific
+PAK6,Third,term-specific
+PAK7,Third,term-specific
+PAL4D,Third,term-specific
+PBP,Third,term-specific
+PCNA,Third,term-specific
+PDGF-CC,Third,term-specific
+PIM1,Third,term-specific
+PKC-D,Third,term-specific
+PKC-G,Third,term-specific
+PLK-1,Third,term-specific
+PSA2,Third,term-specific
+PSME3,Third,term-specific
+PTK6,Third,term-specific
+Parathyroid Hormone1-34,Third,term-specific
+Persephin,Third,term-specific
+Plasmin,Third,term-specific
+Protein disulfide-isomerase,Third,term-specific
+RANK,Third,term-specific
+RELT,Third,term-specific
+ROR1,Third,term-specific
+RTN4,Third,term-specific
+SEPR,Third,term-specific
+SLAF5,Third,term-specific
+SPTA2,Third,term-specific
+SREC-I,Third,term-specific
+SREC-II,Third,term-specific
+SSRP1,Third,term-specific
+STX1a,Third,term-specific
+Secretin,Third,term-specific
+Semaphorin 3E,Third,term-specific
+Sialoadhesin,Third,term-specific
+TAK1-TAB1,Third,term-specific
+TBP,Third,term-specific
+TCPTP,Third,term-specific
+TGF-b2,Third,term-specific
+TGF-b3,Third,term-specific
+TNF sR-I,Third,term-specific
+TNF-b,Third,term-specific
+TNFSF15,Third,term-specific
+TRAIL R1,Third,term-specific
+TRY3,Third,term-specific
+TS,Third,term-specific
+TSH,Third,term-specific
+TYK2,Third,term-specific
+Thyroxine-Binding Globulin,Third,term-specific
+Topoisomerase I,Third,term-specific
+TrkA,Third,term-specific
+ULBP-2,Third,term-specific
+VWC2L,Third,term-specific
+WFKN1,Third,term-specific
+WISP-1,Third,term-specific
+XEDAR,Third,term-specific
+annexin VI,Third,term-specific
+b-NGF,Third,term-specific
+cIAP-2,Third,term-specific
+calgranulin B,Third,term-specific
+carbonic anhydrase II,Third,term-specific
+dopa decarboxylase,Third,term-specific
+gpIIbIIIa,Third,term-specific
+hnRNP K,Third,term-specific
+kallikrein 5,Third,term-specific
+p60-Src,Third,term-specific
+paraoxonase 1,Third,term-specific
+sCD4,Third,term-specific
+"transcription factor MLR1, isoform CRA_b",Third,term-specific

@@ -1,0 +1,268 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+#BiocManager::install("org.Hs.eg.db")
+#BiocManager::install("pathview")
+#BiocManager::install("TxDb.Hsapiens.UCSC.hg38.knownGene")
+packageVersion("enrichplot")
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(ggsci)
+library(readxl)
+library(GenomicFeatures)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(janitor)
+```
+
+```{r}
+# Import the data
+hars <- read_excel("../data/HARs/science.abm1696_table_s1.xlsx")
+hars
+
+hyp_res <- read_csv("../output/tarca/all_ranked_LOEUF_mapped_genes_control+sPTD.csv")
+hyp_res
+
+var_data <- read_csv("../data/tarca_et_al_2021/full_data_merged.csv")
+var_data$ENTREZ_GENE_ID_LIST <- as.character(var_data$ENTREZ_GENE_ID_LIST)
+var_data <- var_data %>%
+  clean_names()
+var_data
+```
+
+```{r}
+# Get ENTREZ gene IDs
+genes <- right_join(hyp_res, var_data, by = "uni_prot")
+
+# Tidy the gene data
+genes <- genes %>%
+  dplyr::select(protein, gene, entrez_gene_id_list)
+
+# Tidy the HAR data
+#hars$chrom <- str_replace(hars$chrom, "chr", "")
+names(hars)[names(hars) == 'chrom'] <- 'chromosome'
+
+# Tidy the LOEUF data
+hyp_res$chromosome <- str_replace(hyp_res$chromosome, "chr", "")
+hyp_res <- inner_join(genes, hyp_res, by = c("gene", "protein"))
+```
+
+
+```{r}
+# Select columns of interest
+hyp_res_filtered <- hyp_res %>%
+  dplyr::select(gene, entrez_gene_id_list, protein, lof.oe_ci.upper) %>%
+  distinct()
+```
+
+```{r}
+# Annotate the genes
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+gene_coords <- genes(txdb, single.strand.genes.only = FALSE) # Extract all gene coordinates
+gene_coords_df <- as.data.frame(gene_coords)
+
+annotated_genes <- inner_join(hyp_res_filtered, gene_coords_df, by = c("entrez_gene_id_list" = "group_name"))
+annotated_genes <- annotated_genes %>%
+  dplyr::select(gene, seqnames, start, end, width, strand) %>% # if issues downstream occur swap gene for entrez_gene_id_list
+  distinct()
+names(annotated_genes)[names(annotated_genes) == 'seqnames'] <- 'chromosome'
+```
+
+```{r}
+# Tidy the gene data
+genes <- annotated_genes %>%
+  dplyr::select(gene, chromosome, start, end, strand)
+```
+
+```{r}
+# Find overlaps between HARs and LOEUF-mapped genes
+genes_gr <- GRanges(seqnames = genes$chromosome,
+                    ranges = IRanges(start = genes$start, end = genes$end),
+                    gene = genes$gene)
+
+hars_gr <- GRanges(seqnames = hars$chromosome,
+                   ranges = IRanges(start = hars$start, end = hars$end),
+                   har_id = hars$simple_name)
+
+overlaps <- findOverlaps(genes_gr, hars_gr)
+```
+
+```{r}
+overlapping_regions <- pintersect(
+  genes_gr[queryHits(overlaps)],
+  hars_gr[subjectHits(overlaps)]
+)
+
+overlap_df <- data.frame(
+  gene = genes_gr[queryHits(overlaps)]$gene,
+  har_id = hars_gr[subjectHits(overlaps)]$har_id,
+  chr = as.character(seqnames(overlapping_regions)),
+  start = start(overlapping_regions),
+  end = end(overlapping_regions)
+)
+
+overlap_df$overlap_width <- width(overlapping_regions)
+```
+
+```{r}
+library(GenomicFeatures)
+library(AnnotationDbi)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(org.Hs.eg.db)
+
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+
+promoters <- promoters(txdb, upstream = 2000, downstream = 500)
+
+five_utrs <- fiveUTRsByTranscript(txdb, use.names = TRUE)
+three_utrs <- threeUTRsByTranscript(txdb, use.names = TRUE)
+five_utrs_gr <- unlist(five_utrs)
+three_utrs_gr <- unlist(three_utrs)
+
+exons <- exons(txdb)
+introns <- intronsByTranscript(txdb)
+
+promoter_overlaps <- findOverlaps(overlapping_regions, promoters)
+utr5_overlaps <- findOverlaps(overlapping_regions, five_utrs_gr)
+utr3_overlaps <- findOverlaps(overlapping_regions, three_utrs_gr)
+exon_overlaps <- findOverlaps(overlapping_regions, exons)
+intron_overlaps <- findOverlaps(overlapping_regions, introns)
+
+# Annotate type
+region_type <- rep("intergenic", length(overlapping_regions)) # has no known coordinates but if the result is not matched to anything else it is most likely intergenic
+region_type[queryHits(intron_overlaps)] <- "intron"
+region_type[queryHits(promoter_overlaps)] <- "promoter"
+region_type[queryHits(exon_overlaps)] <- "exon"
+region_type[queryHits(utr5_overlaps)] <- "5'UTR"
+region_type[queryHits(utr3_overlaps)] <- "3'UTR"
+
+overlap_df$region_type <- region_type
+```
+
+```{r}
+har_res <- hyp_res %>%
+  inner_join(overlap_df, by = "gene") %>%
+  dplyr::select(gene, har_id, lof.oe_ci.upper, chr, start, end, overlap_width, region_type) %>%
+  distinct()
+
+write_csv(har_res, "../output/tarca/HAR_mapped.csv", col_names = TRUE)
+```
+
+# Functional analysis
+```{r}
+library(annotables)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
+library(pathview)
+```
+
+```{r}
+# Sort out the LOEUF-mapped genes and the full hypergraph output for Functional Analysis
+var <- hyp_res %>%
+  distinct(gene) %>%
+  drop_na(gene) %>%
+  column_to_rownames(var = "gene")
+
+# Return the IDs for the gene symbols in the DE results
+idx <- grch38$symbol %in% rownames(var)
+ids <- grch38[idx, ]
+
+# Remove duplicate IDs
+non_duplicates <- which(duplicated(ids$symbol) == FALSE)
+ids <- ids[non_duplicates, ]
+
+# Merge the IDs with the results
+res_ids <- inner_join(var_data, ids, by=c("entrez_gene_symbol"="symbol"))
+
+# Repeat the above steps for HAR-mapped genes
+har_idx <- grch38$symbol %in% har_res$gene
+har_ids <- grch38[har_idx, ]
+non_duplicates3 <- which(duplicated(har_ids$symbol) == FALSE)
+har_ids <- har_ids[non_duplicates3, ]
+sig_har_ids <- inner_join(har_res, har_ids, by=c("gene"="symbol"))
+sig_har_ids <- sig_har_ids %>%
+  distinct(gene)
+
+# Create a background dataset for hypergeometric testing using all genes tested for significance in the results
+all_genes <- as.character(res_ids$entrez_gene_symbol)
+
+# Significant results (HARs)
+sig_genes_har <- as.character(sig_har_ids$gene)
+```
+
+```{r}
+# Biological functions
+ego <- enrichGO(gene = sig_genes_har,
+                universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "BP",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.05,
+                readable = TRUE)
+
+BP <- data.frame(ego) %>%
+  dplyr::filter(p.adjust < 0.05)
+
+write_csv(BP, "../output/tarca/GO_BP.csv", col_names = TRUE)
+
+# Molecular functions
+ego1 <- enrichGO(gene = sig_genes_har,
+                universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "MF",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.05,
+                readable = TRUE)
+
+MF <- data.frame(ego1) %>%
+  dplyr::filter(p.adjust < 0.05)
+
+write_csv(MF, "../output/GO/molecular_functions_LOEUF_mapped_genes.csv", col_names = TRUE)
+
+# Cellular components
+ego2 <- enrichGO(gene = sig_genes_har,
+                universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "CC",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.05,
+                readable = TRUE)
+
+CC <- data.frame(ego2) %>%
+  dplyr::filter(p.adjust < 0.05)
+
+write_csv(CC, "../output/GO/cellular_components_LOEUF_mapped_genes.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

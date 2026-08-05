@@ -1,0 +1,806 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+install.packages("minerva")
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(ggpubr)
+library(ggsci)
+theme_set(
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 12, colour = "black"),
+    axis.title = element_text(size = 13),
+    title = element_text(size = 14),
+    legend.position = "top",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  )
+)
+```
+
+```{r}
+# Import the data
+central_clusters <- read_csv("../output/tarca/central_clusters.csv")
+
+hyp_res <- read_csv("../output/tarca/full_hypergraph_results.csv")
+loeuf <- read_csv("../output/tarca/all_ranked_LOEUF_mapped_genes_control+sPTD.csv")
+
+dunns <- read_csv("../output/tarca/statistics_filtered_DEGs_Dunns.csv")
+anova <- read_csv("../output/tarca/statistics_filtered_DEGs_ANOVA.csv")
+```
+
+```{r}
+# Separate the central clusters and DE results
+central_clusters2 <- central_clusters %>%
+  filter(trimester == "Second")
+central_clusters3 <- central_clusters %>%
+  filter(trimester == "Third")
+
+dunns2 <- dunns %>%
+  filter(trimester == "Second")
+dunns3 <- dunns %>%
+  filter(trimester == "Third")
+anova2 <- anova %>%
+  filter(trimester == "Second")
+anova3 <- anova %>%
+  filter(trimester == "Third")
+```
+
+```{r}
+# Are all central cluster proteins DE?  
+all(central_clusters2$target %in% anova2$target) # FALSE
+all(central_clusters3$target %in% anova3$target) # FALSE
+all(central_clusters2$target %in% dunns2$protein_name) # FALSE
+all(central_clusters3$target %in% dunns3$protein_name) # FALSE
+
+# Which proteins are DE?
+central_clusters2$DE_anova <- central_clusters2$target %in% anova2$target
+central_clusters2$DE_kw <- central_clusters2$target %in% dunns2$protein_name
+central_clusters3$DE_anova <- central_clusters3$target %in% anova3$target
+central_clusters3$DE_kw <- central_clusters3$target %in% dunns3$protein_name
+
+# Are the DE_anova and DE_kw values the same for all proteins? Yes -> make a single DE column then
+identical(central_clusters2$DE_anova, central_clusters2$DE_kw)
+identical(central_clusters3$DE_anova, central_clusters3$DE_kw)
+
+# Make a single DE column 
+central_clusters2$DE <- central_clusters2$DE_kw
+central_clusters2 <- central_clusters2 %>%
+  dplyr::select(-c(DE_anova, DE_kw))
+
+central_clusters3$DE <- central_clusters3$DE_kw
+central_clusters3 <- central_clusters3 %>%
+  mutate(DE_anova = NULL, DE_kw = NULL)
+
+# Re-join the central clusters 
+central_clusters <- full_join(central_clusters2, central_clusters3)
+central_clusters # there should be 881 rows
+
+central_clusters2 %>%
+  count(DE)
+
+central_clusters3 %>%
+  count(DE)
+
+central_clusters %>%
+  select(target, DE) %>%
+  distinct() %>%
+  count(DE)
+```
+
+```{r}
+# Are all central cluster proteins evolutionarily constrained?
+all(central_clusters$target %in% loeuf$protein) # No.
+
+# Which proteins are constrained?
+central_clusters$constrained <- central_clusters$target %in% loeuf$protein
+
+central_clusters %>%
+  count(target) %>%
+  arrange(desc(n)) # total is 645!
+
+# How many proteins are constrained?
+central_clusters %>%
+  select(target, constrained) %>%
+  distinct() %>%
+  count(constrained)
+```
+
+```{r}
+# Where are the central cluster proteins positioned in the hypergraph?
+central_cluster_prots <- as.list(central_clusters$target)
+all(central_clusters$target %in% hyp_res$protein) # TRUE
+
+hyp_res %>%
+  dplyr::select(trimester, group, protein, norm_rank) %>%
+  filter(protein %in% central_cluster_prots) %>%
+  distinct(protein, .keep_all = TRUE) %>% # should be 645
+  count(norm_rank) # range from 0.06 - 1.0
+
+hyp_res %>%
+  dplyr::select(trimester, group, protein, norm_rank) %>%
+  filter(protein %in% central_cluster_prots) %>%
+  #distinct(protein, .keep_all = TRUE) %>% # should be 645
+  ggplot() + aes(x = norm_rank, colour = group, fill = group) + geom_density(key_glyph = "path") +
+  scale_colour_npg() + scale_fill_npg(alpha = 0.1) + facet_wrap(~trimester) + 
+  ylab("Density") + xlab("Normalised rank")
+
+ggsave("../output/tarca/visuals/cc_rank_density.tiff", height = 6, width = 8)
+
+central_cluster_hyp <- hyp_res %>%
+  dplyr::select(trimester, group, entrez_gene_symbol, protein, norm_rank) %>%
+  filter(protein %in% central_cluster_prots) %>%
+  distinct()
+
+central_cluster_hyp %>%
+  summary(norm_rank)
+
+quantile(central_cluster_hyp$norm_rank, probs = 0.9)
+quantile(central_cluster_hyp$norm_rank, probs = 0.1)
+quantile(central_cluster_hyp$norm_rank, probs = 0.2)
+quantile(central_cluster_hyp$norm_rank, probs = 0.3)
+```
+
+```{r}
+central_cluster_hyp %>%
+  filter(protein %in% c("Cyclophilin A", "IL-7 Ra", "FGF-12", "Livin B", "Arylsulfatase A", "GPC2", "DSC3"), group != "PPROM") %>%
+  arrange(protein)
+
+targets <- central_cluster_hyp %>%
+  pivot_wider(id_cols = c(protein, trimester), 
+              names_from = group,
+              values_from = norm_rank) %>%
+  select(-PPROM)
+
+targets2 <- targets %>%
+  filter(Control > 0.9197425 & sPTD < 0.1545064) # drop from the 90th quantile to the 10th quantile
+
+central_cluster_hyp %>%
+  filter(protein %in% targets2$protein, group != "PPROM") %>%
+  ggplot() + aes(x = group, y = norm_rank, group = protein, colour = as.factor(protein)) + 
+  geom_point(size = 3) + geom_line(size = 0.5, alpha  = 0.7) + facet_wrap(~trimester)
+
+central_clusters %>%
+  filter(target %in% targets2$protein) %>%
+  count(constrained) # 11 DE, 25 non-DE, 28 constrained, 8 non-constrained
+
+targets2$protein
+```
+
+
+```{r}
+central_cluster_hyp2 <- left_join(central_cluster_hyp, central_clusters, by = c("trimester", "protein" = "target")) %>%
+  drop_na()
+
+cc_90th_quantile <- central_cluster_hyp2 %>%
+  filter(norm_rank > 0.9197425) # 90th quantile
+
+cc_90th_quantile %>%
+  filter(DE == TRUE, constrained == TRUE)
+
+cc_10th_quantile <- central_cluster_hyp2 %>%
+  filter(norm_rank < 0.1545064) # 10th quantile
+
+cc_10th_quantile %>%
+  filter(DE == FALSE, constrained == FALSE)
+
+#write_csv(cc_90th_quantile, "../output/tarca/central_cluster_90th_quantile.csv", col_names = TRUE)
+#write_csv(cc_10th_quantile, "../output/tarca/central_cluster_10th_quantile.csv", col_names = TRUE)
+
+top_50_10 <- cc_10th_quantile %>%
+  filter(trimester == "Second") %>%
+  arrange(norm_rank)
+
+as.vector(top_50_10$protein)
+```
+
+# PCA loadings and DE proteins in the central cluster
+
+```{r}
+plotted <- c("JAK2", "SET", "GPC5", "UBE2N", "PCSK7", "NR1D1", "PA2G4", "PDPK1")
+plotted %in% central_cluster_prots # [1]  TRUE FALSE FALSE  TRUE FALSE  TRUE FALSE FALSE
+
+top_pos <- c('JAK2', 'IGFBP-6', 'NOTC2', 'PCSK7', 'C3a', 'METAP1', 'PKC-B-II', 'Integrin a1b1', 'FER', 'Clusterin', 'TSP4', 'IF4A3', 'GPC5', 'LG3BP', 'Glucagon', 'PTHrP', 'LYVE1', 'Coagulation Factor V', 'TIMP-1', 'LAG-3', 'M2-PK', 'CAMK2B', 'H6ST1', 'CAMK2D', 'Coagulation Factor VII')
+top_pos %in% central_cluster_prots 
+
+top_neg <- c('Thrombin', 'Soggy-1', 'a2-Macroglobulin', 'Cadherin-6', 'IL-17 RC', 'Prothrombin', 'SIRT2', 'OBCAM', 'YES', 'amyloid precursor protein', 'PIM1', 'MRCKB', 'C4b', 'P-Selectin', 'STX1a', 'Apo B', 'SPARCL1', 'Calcineurin B a', 'MMEL2', 'CSF-1', 'Flt-3', 'Protease nexin I', 'HIPK3', 'a1-Antichymotrypsin', 'GOT1')
+top_neg %in% central_cluster_prots
+
+central_clusters %>%
+  filter(target == "HIPK3")
+
+hyp_res %>%
+  filter(protein == "STX1a")
+```
+*From the proteins plotted on Figure 3, JAK2, UBE2N and NR1D1 are in the central cluster.*
+- JAK2 - term-specific in both trimesters, DE, constrained 
+- NR1D1 - term-specific in both trimesters, DE, constrained
+- UBE2N - sPTD-specific in both trimesters, DE, constrained
+-> 3/8 (37.5%) are in the central cluster, and all three have known associations to premature birth.
+
+*From the top positive loadings in second trimester, JAK2, Integrin a1b1, IF4A3, LG3BP, M2-PK, CAMK2B, CAMK2D, H6ST1 are in the central cluster.*
+- JAK2 - term-specific in both trimesters, DE, constrained
+- CAMK2B - sPTD-specific in third trimester, DE, constrained 
+- CAMK2D - sPTD-specific in third trimester, DE, constrained 
+- IF4A3 - term-specific in both trimesters, not DE, constrained
+- LG3BP - sPTD-specific in third trimester, not DE, constrained
+- H6ST1 - sPTD-specific in third trimester, not DE, constrained
+- Integrin a1b1 - term-specific in both trimesters, not DE, not constrained
+- M2-PK - term-specific in second trimester, not DE, not constrained
+-> 8/25 (32%) are in the central cluster!
+
+*From the top negative loadings in second trimester, Cadherin-6, IL-17 RC, YES, PIM1, C4b, STX1a, SPARCL1, Calcineurin B a, CSF-1, Flt-3, HIPK3 are in the central cluster.*
+- PIM1 - term-specific in both trimesters, DE, constrained
+- SPARCL1 - sPTD-specific in third trimester, DE, constrained
+- HIPK3 - sPTD-specific in third trimester, DE, constrained
+- Cadherin-6 - term-specific in third trimester, not DE, constrained
+- IL-17 RC - term-specific in third trimester, not DE, constrained
+- YES - sPTD-specific in third trimester, not DE, constrained
+- STX1a - term-specific in both trimesters, not DE, constrained -> jumps from 90th to 10th percentile! Involved in Ca2+ regulation! 
+- C4b - term-specific in both trimesters, not DE, not constrained
+- Calcineurin B a - term-specific in both trimesters, not DE, constrained
+- CSF-1 - term-specific in both trimesters, not DE, constrained
+- Flt-3 - sPTD-specific in both trimesters, not DE, constrained
+-> 11/25 (44%) are in the central cluster!
+
+# Logistic modelling
+```{r}
+# Import the data
+second_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_second_trimester.csv")
+second_trimester
+
+third_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_third_trimester.csv")
+third_trimester
+
+# Tidy the data
+second_trimester$Trimester <- "Second"
+third_trimester$Trimester <- "Third"
+
+second_trimester <- second_trimester %>%
+  clean_names()
+third_trimester <- third_trimester %>%
+  clean_names()
+
+full_data <- full_join(second_trimester, third_trimester)
+full_data <- full_data %>%
+  clean_names()
+```
+
+```{r}
+# Remove outliers
+full_data_wide <- full_data %>%
+  pivot_wider(id_cols = c(accession), names_from = target, values_from = log2rfu) %>%
+  column_to_rownames(var = "accession")
+
+set.seed(32)
+
+# 1. Run PCA (if not already done)
+pca <- prcomp(full_data_wide, center = TRUE, scale. = TRUE)
+
+# 2. Decide on number of PCs (k)  
+#    For example, capture 90% variance:
+var_explained <- cumsum(pca$sdev^2) / sum(pca$sdev^2)
+k <- which(var_explained >= 0.90)[1]
+
+# 3. Extract the scores matrix (samples × k)
+scores_k <- pca$x[, 1:k]
+
+# 4a. Classical Mahalanobis in PC space
+cov_k    <- cov(scores_k)
+center_k <- colMeans(scores_k)
+maha_k   <- mahalanobis(scores_k, center = center_k, cov = cov_k)
+
+# 4b. Robust Mahalanobis via covMcd on PC scores
+library(robustbase)
+mcd_k    <- covMcd(scores_k, alpha = 0.75)
+maha_robust_k <- mahalanobis(
+  scores_k,
+  center = mcd_k$center,
+  cov    = mcd_k$cov
+)
+
+# 5. Define cutoff and flag outliers
+#    e.g. 97.5th percentile of chi-square(df = k)
+cutoff <- qchisq(0.975, df = k)
+outliers_classic <- which(maha_k > cutoff)
+outliers_robust  <- which(maha_robust_k > cutoff)
+
+# 6. Remove or inspect outliers
+filtered_samples <- setdiff(seq_len(nrow(full_data_wide)), outliers_robust)
+filtered_data <- full_data_wide[filtered_samples, ]
+```
+
+```{r}
+filtered_data2 <- filtered_data %>%
+  rownames_to_column(var = "accession") %>%
+  pivot_longer(cols = -c(accession), names_to = "target", values_to = "log2rfu")
+
+filtered_data3 <- left_join(filtered_data2, full_data, by = c("accession", "target", "log2rfu"))
+```
+
+```{r}
+# Restructure the data into wide format
+model_data2 <- full_data %>% # change to filtered_data3
+  filter(target %in% cc_90th_quantile$protein, group != "PPROM", trimester == "Second") # change cc_90th_quantile to cc_10th_quantile
+
+model_data3 <- full_data %>%
+  filter(target %in% cc_90th_quantile$protein, group != "PPROM", trimester == "Third")
+
+model_data2w <- model_data2 %>%
+  pivot_wider(#id_cols = c(accession, group), # use for logistic modelling
+              id_cols = accession, # use for assessing multicollinearity and nonlinearity
+              names_from = target,
+              values_from = log2rfu) %>%
+  column_to_rownames(var = "accession")
+
+model_data3w <- model_data3 %>%
+  pivot_wider(#id_cols = c(accession, group),
+              id_cols = accession,
+              names_from = target,
+              values_from = log2rfu) %>%
+  column_to_rownames(var = "accession")
+```
+
+*Assess multicollinearity*
+Severe multicollinearity is present -> dimensionality reduction + regularization needed
+- PCA, clustering or other orthogonalization techniques are required before biomarker modelling
+- next steps: quantify collinearity using variance inflation factor (VIF) for individual proteins
+```{r}
+# Correlation matrix
+library(corrplot)
+
+cor_matrix2 <- cor(model_data2w, use = "pairwise.complete.obs")
+print(cor_matrix2)
+
+cor_matrix3 <- cor(model_data3w, use = "pairwise.complete.obs")
+print(cor_matrix3)
+
+png("../output/tarca/visuals/corrplot_cc10th_second_trimester.png", width = 800, height = 800)  
+corrplot(cor_matrix2, method = "color", is.corr = TRUE, tl.pos = "n", order = "AOE")
+dev.off()                                       
+
+png("../output/tarca/visuals/corrplot_cc10th_third_trimester.png", width = 800, height = 800) 
+corrplot(cor_matrix3, method = "color", is.corr = TRUE, tl.pos = "n", order = "AOE")
+dev.off() 
+```
+```{r}
+# Find pairs with |correlation| > 0.9
+high_cor_pairs <- which(abs(cor_matrix2) > 0.75 & abs(cor_matrix2) < 1, arr.ind = TRUE)
+cor_pairs_df <- data.frame(
+  Protein_A = rownames(cor_matrix2)[high_cor_pairs[,1]],
+  Protein_B = colnames(cor_matrix2)[high_cor_pairs[,2]],
+  Correlation = cor_matrix2[high_cor_pairs]
+)
+
+model_data2w <- model_data2w[, !(colnames(model_data2w) %in% cor_pairs_df$Protein_A)]
+
+high_cor_pairs3 <- which(abs(cor_matrix3) > 0.75 & abs(cor_matrix3) < 1, arr.ind = TRUE)
+cor_pairs_df3 <- data.frame(
+  Protein_A = rownames(cor_matrix3)[high_cor_pairs3[,1]],
+  Protein_B = colnames(cor_matrix3)[high_cor_pairs3[,2]],
+  Correlation = cor_matrix3[high_cor_pairs3]
+)
+
+model_data3w <- model_data3w[, !(colnames(model_data3w) %in% cor_pairs_df3$Protein_A)]
+```
+
+*Visualise nonlinear structure*
+```{r}
+library(Rtsne)
+set.seed(42)
+tsne_out <- Rtsne(as.matrix(model_data2w), dims = 2)
+plot(tsne_out$Y, pch = 19, col = "steelblue", main = "t-SNE plot of samples")
+```
+
+```{r}
+library(umap)
+umap_out <- umap(model_data2w)
+plot(umap_out$layout, pch = 19, col = "darkgreen", main = "UMAP plot of samples")
+```
+
+```{r}
+filtered_data3 %>%
+  filter(target %in% cc_10th_quantile$protein, group != "PPROM") %>%
+  filter(target == "40S ribosomal protein SA") %>%
+  ggplot() + aes(x = log2rfu, y = ga_delivery, colour = group) + geom_point()
+```
+
+```{r}
+library(glmnet)
+
+# Prepare data for glmnet
+X <- model.matrix(~ . - 1, data = model_data2w[, -which(names(model_data2w) %in% c("group", "accession"))])
+y <- model_data2w$group
+
+# Check the reference group
+model_data2w$group <- as.factor(model_data2w$group)
+levels(model_data2w$group)
+
+# Set or confirm the reference group if needed
+model_data2w$group <- relevel(model_data2w$group, ref = "Control")  # "Control" is your control group label
+
+# If binary outcome ("term"/"preterm"):
+cv_fit <- cv.glmnet(X, y, family = "binomial", alpha = 0) # 'alpha = 0' for L2 penalty, 1 for L1 (Lasso), and 0.5 for elastic net (L1 + L2)
+
+plot(cv_fit)
+coef(cv_fit, s = cv_fit$lambda.1se)
+
+cv_fit$lambda.min
+cv_fit$lambda.1se 
+
+better_lambda = cv_fit$lambda.1se 
+```
+*lambda.1se = lambda.min* -> what does this mean?
+- cross-validation error is near minimum => the best (lambda min) and the simplest model (lambda 1se) are the same in performance
+- indicates well-behaved structure of the data and the model
+
+As the binomial deviance (a measure of cross-validated model fit; lower = better) plateaus at about X = 5, the additional number of predictors after that point does not meaningfully improve the model fit (as the curve flattens), therefore, instead of using the lambda.min for regularization, I will use the value of lambda found at X = 5, or 30 predictors, which is lambda = 0.0076303614.
+
+```{r}
+# Extract number of non-zero coefficients (including intercept) for each lambda
+nonzero_counts <- cv_fit$glmnet.fit$df  # number of nonzero coeffs excluding intercept
+
+# Lambda sequence tested
+lambda_seq <- cv_fit$glmnet.fit$lambda
+
+# View number of predictors (#nonzero) vs lambda
+data.frame(lambda = lambda_seq, nonzero = nonzero_counts)
+```
+
+
+```{r}
+# Extract coefficients at best lambda
+coefs <- coef(cv_fit, s = better_lambda)
+
+# Convert to a regular matrix and get row names
+coefs_mat <- as.matrix(coefs)
+predictor_names <- rownames(coefs_mat)
+
+# Logical vector of non-zero coefficients (excluding intercept if you want)
+nonzero <- coefs_mat[, 1] != 0
+
+# Show only predictors with non-zero coefficients
+nonzero_coefs <- coefs_mat[nonzero, , drop = FALSE]
+
+# Display results
+print(nonzero_coefs)
+```
+*What does this output represent?*
+>The value of the coefficient represents the magnitude and direction of the effect of that predictor on the outcome on a specific scale (e.g., for logistic regression, it's on the log-odds scale). Each coefficient shows how log2rfu expression of a given biomarker affects the log-odds of being in the preterm group relative to control.
+
+- positive coef -> higher log2rfu of that protein increases the odds of sPTD compared to the control
+- negative coef -> higher log2rfu of that protein decreases the odds of sPTD compared to the control
+
+An increase of one unit in log2rfu multiplies the odds by exp(coefficient).
+
+```{r}
+# Extract coefficients at lambda.min
+coefs <- coef(cv_fit, s = better_lambda)
+
+# Convert to matrix and extract names and values
+coefs_mat <- as.matrix(coefs)
+predictor_names <- rownames(coefs_mat)
+coef_values <- coefs_mat[, 1]
+
+# Filter non-zero coefficients
+nonzero_idx <- coef_values != 0
+nonzero_coefs <- coef_values[nonzero_idx]
+nonzero_names <- predictor_names[nonzero_idx]
+clean_names <- nonzero_names[nzchar(nonzero_names)]
+print(clean_names)
+
+# Calculate odds ratios
+odds_ratios <- exp(nonzero_coefs)
+
+# Calculate percentage increase/decrease in odds
+# (odds ratio - 1) * 100 gives % change in odds
+percent_change_odds <- (odds_ratios - 1) * 100
+
+# Create a data frame for easy inspection
+regularised_results4 <- data.frame( # change to (non)regularized if adding/removing regularization
+  Predictor = nonzero_names,
+  Coefficient = nonzero_coefs,
+  OddsRatio = odds_ratios,
+  PercentChangeOdds = percent_change_odds
+)
+regularised_results4$Predictor <- gsub("`", "", regularised_results4$Predictor)
+
+# View results
+#print(non_regularised_results)
+#print(regularised_results) # L2
+#print(regularised_results2) # L1
+#print(regularised_results3) # elastic net
+print(regularised_results4) # L2, 10th percentile
+
+#write.csv(non_regularised_results, "../output/tarca/non_regularised_log_regression_modeling_central_cluster_90th_quantile_second_trimester.csv")
+#write.csv(regularised_results, "../output/tarca/L2_regularised_log_regression_modeling_central_cluster_90th_quantile_second_trimester_minus_outliers.csv")
+#write.csv(regularised_results2, "../output/tarca/L1_regularised_log_regression_modeling_central_cluster_90th_quantile_second_trimester.csv")
+#write.csv(regularised_results3, "../output/tarca/elastic_net_regularised_log_regression_modeling_central_cluster_90th_quantile_second_trimester.csv")
+write.csv(regularised_results4, "../output/tarca/L2_regularised_log_regression_modeling_central_cluster_10th_quantile_second_trimester_minus_outliers.csv")
+```
+
+```{r}
+regularised_results4 %>%
+  arrange(desc(PercentChangeOdds))
+```
+
+
+# Gene Ontology
+```{r}
+library(clusterProfiler)
+library(annotables)
+library(org.Hs.eg.db)
+library(enrichplot)
+library(pathview)
+```
+
+```{r}
+# Sort out the central clusters for Functional Analysis
+ctrl2 <- central_cluster_hyp %>%
+  filter(trimester == "Second", group == "Control")
+ctrl3 <- central_cluster_hyp %>%
+  filter(trimester == "Third", group == "Control")
+sptd2 <- central_cluster_hyp %>%
+  filter(trimester == "Second", group == "sPTD")
+sptd3 <- central_cluster_hyp %>%
+  filter(trimester == "Third", group == "sPTD")
+
+idx_sig <- grch38$symbol %in% sptd3$entrez_gene_symbol
+ids_sig <- grch38[idx_sig, ]
+non_duplicates2 <- which(duplicated(ids_sig$symbol) == FALSE)
+ids_sig <- ids_sig[non_duplicates2, ]
+sig_res_ids <- inner_join(sptd3, ids_sig, by=c("entrez_gene_symbol"="symbol"))
+sig_res_ids <- sig_res_ids %>%
+  distinct(entrez_gene_symbol)
+
+# Create a background dataset for hypergeometric testing using all genes tested for significance in the results
+all_genes <- as.character(hyp_res$entrez_gene_symbol)
+
+# Significant results
+sig_genes <- as.character(sig_res_ids$entrez_gene_symbol)
+```
+
+```{r}
+# Biological functions
+ego <- enrichGO(gene = sig_genes,
+                #universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "BP",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.01,
+                readable = TRUE)
+
+#BP <- data.frame(ego) %>%
+#  dplyr::filter(p.adjust < 0.01) %>%
+#  arrange(desc(Count))
+#BP$Trimester <- "Second"
+#BP$Group <- "Control"
+
+# BP2 <- data.frame(ego) %>%
+#   dplyr::filter(p.adjust < 0.01) %>%
+#   arrange(desc(Count))
+# BP2$Trimester <- "Second"
+# BP2$Group <- "sPTD"
+# 
+# BP_second_trimester <- full_join(BP, BP2)
+# BP_second_trimester <- BP_second_trimester %>%
+#   group_by(Group) %>%
+#   arrange(desc(Count))
+# 
+# BP_second_trimester %>%
+#   group_by(Description) %>%
+#   wilcox.test(Group, FoldEnrichment, alternative = "two.sided", conf.int = TRUE, conf.level = 0.95)
+# 
+# write_csv(BP_second_trimester, "../output/tarca/biological_processes_central_clusters2.csv", col_names = TRUE)
+
+# BP3 <- data.frame(ego) %>%
+#   dplyr::filter(p.adjust < 0.01) %>%
+#   arrange(desc(Count))
+# BP3$Trimester <- "Third"
+# BP3$Group <- "Control"
+
+BP4 <- data.frame(ego) %>%
+  dplyr::filter(p.adjust < 0.01) %>%
+  arrange(desc(Count))
+BP4$Trimester <- "Third"
+BP4$Group <- "sPTD"
+
+BP_third_trimester <- full_join(BP3, BP4)
+BP_third_trimester <- BP_third_trimester %>%
+  group_by(Group) %>%
+  arrange(desc(Count))
+
+#BP_third_trimester %>%
+#  group_by(Description) %>%
+#  wilcox.test(Group, FoldEnrichment, alternative = "two.sided", conf.int = TRUE, conf.level = 0.95)
+
+write_csv(BP_third_trimester, "../output/tarca/biological_processes_central_clusters3.csv", col_names = TRUE)
+```
+
+```{r}
+# Molecular functions
+ego1 <- enrichGO(gene = sig_genes,
+                #universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "MF",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.01,
+                readable = TRUE)
+
+#MF <- data.frame(ego1) %>%
+#  dplyr::filter(p.adjust < 0.01) %>%
+#  arrange(desc(Count))
+#MF$Trimester <- "Second"
+#MF$Group <- "Control"
+
+# MF2 <- data.frame(ego1) %>%
+#   dplyr::filter(p.adjust < 0.01) %>%
+#   arrange(desc(Count))
+# MF2$Trimester <- "Second"
+# MF2$Group <- "sPTD"
+# 
+# MF_second_trimester <- full_join(MF, MF2)
+# MF_second_trimester <- MF_second_trimester %>%
+#   group_by(Group) %>%
+#   arrange(desc(Count))
+# 
+# write_csv(MF_second_trimester, "../output/tarca/molecular_functions_central_clusters2.csv", col_names = TRUE)
+
+# MF3 <- data.frame(ego1) %>%
+#   dplyr::filter(p.adjust < 0.01) %>%
+#   arrange(desc(Count))
+# MF3$Trimester <- "Third"
+# MF3$Group <- "Control"
+
+MF4 <- data.frame(ego1) %>%
+  dplyr::filter(p.adjust < 0.01) %>%
+  arrange(desc(Count))
+MF4$Trimester <- "Third"
+MF4$Group <- "sPTD"
+
+MF_third_trimester <- full_join(MF3, MF4)
+MF_third_trimester <- MF_third_trimester %>%
+  group_by(Group) %>%
+  arrange(desc(Count))
+
+# MF_third_trimester %>%
+#   group_by(Description) %>%
+#   wilcox.test(Group, FoldEnrichment, alternative = "two.sided", conf.int = TRUE, conf.level = 0.95)
+
+write_csv(MF_third_trimester, "../output/tarca/molecular_functions_central_clusters3.csv", col_names = TRUE)
+```
+
+```{r}
+# Cellular components
+ego2 <- enrichGO(gene = sig_genes,
+                #universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "CC",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.01,
+                readable = TRUE)
+
+#CC <- data.frame(ego2) %>%
+#  dplyr::filter(p.adjust < 0.01) %>%
+#  arrange(desc(Count))
+#CC$Trimester <- "Second"
+#CC$Group <- "Control"
+
+# CC2 <- data.frame(ego2) %>%
+#   dplyr::filter(p.adjust < 0.01) %>%
+#   arrange(desc(Count))
+# CC2$Trimester <- "Second"
+# CC2$Group <- "sPTD"
+# 
+# CC_second_trimester <- full_join(CC, CC2)
+# CC_second_trimester <- CC_second_trimester %>%
+#   group_by(Group) %>%
+#   arrange(desc(Count))
+# 
+# write_csv(CC_second_trimester, "../output/tarca/cell_compartments_central_clusters2.csv", col_names = TRUE)
+
+# CC3 <- data.frame(ego2) %>%
+#   dplyr::filter(p.adjust < 0.01) %>%
+#   arrange(desc(Count))
+# CC3$Trimester <- "Third"
+# CC3$Group <- "Control"
+
+CC4 <- data.frame(ego2) %>%
+  dplyr::filter(p.adjust < 0.01) %>%
+  arrange(desc(Count))
+CC4$Trimester <- "Third"
+CC4$Group <- "sPTD"
+
+CC_third_trimester <- full_join(CC3, CC4)
+CC_third_trimester <- CC_third_trimester %>%
+  group_by(Group) %>%
+  arrange(desc(Count))
+
+write_csv(CC_third_trimester, "../output/tarca/cell_compartments_central_clusters3.csv", col_names = TRUE)
+```
+
+```{r}
+# Sort out the central clusters for Functional Analysis
+ctrl2 <- central_cluster_hyp %>%
+  filter(trimester == "Second", group == "Control")
+ctrl3 <- central_cluster_hyp %>%
+  filter(trimester == "Third", group == "Control")
+sptd2 <- central_cluster_hyp %>%
+  filter(trimester == "Second", group == "sPTD")
+sptd3 <- central_cluster_hyp %>%
+  filter(trimester == "Third", group == "sPTD")
+```
+
+```{r}
+comparelist <- list(ctrl2$entrez_gene_symbol, sptd2$entrez_gene_symbol)
+names(comparelist) <- c("Control","sPTD") 
+cclust <- compareCluster(geneCluster = comparelist, 
+               fun = enrichGO,
+               OrgDb= org.Hs.eg.db,
+               keyType = "SYMBOL",
+               ont= "BP")
+```
+
+```{r}
+dotplot(cclust, showCategory=10)
+
+cclust_df <- as.data.frame(cclust)
+
+# Convert GeneRatio from "58/576" to numeric
+cclust_df <- cclust_df %>%
+  mutate(GeneRatioNum = sapply(GeneRatio, function(x) {
+    num <- as.numeric(sub("/.*", "", x))
+    den <- as.numeric(sub(".*/", "", x))
+    num / den
+  }))
+
+# Keep top N terms per cluster (optional)
+df_top <- cclust_df %>%
+  group_by(Cluster) %>%
+  slice_max(order_by = Count, n = 10) %>%
+  ungroup()
+
+# Plot
+ggplot(df_top,
+       aes(x = Cluster,
+           y = fct_reorder(Description, Count),
+           size = Count,
+           color = p.adjust)) +
+  geom_point() +
+  scale_color_gradientn(
+    colours = c("#f7ca64", "#46bac2", "#7e62a3"),
+    trans = "log10",
+    guide = guide_colorbar(reverse = TRUE)
+  ) +
+  #scale_size_continuous(range = c(2, 10)) +
+  theme_minimal(base_size = 11.5) +
+  labs(
+    x = "Cluster",
+    y = NULL,
+    size = "Count",
+    color = "Adjusted p-value",
+    title = "GO Biological Process Enrichment"
+  )
+
+```
+
+
+
+
+
+
+
+
+

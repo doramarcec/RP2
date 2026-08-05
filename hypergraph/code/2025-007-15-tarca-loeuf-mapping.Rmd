@@ -1,0 +1,119 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(ggsci)
+theme_set(
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 12, colour = "black"),
+    axis.title = element_text(size = 13),
+    title = element_text(size = 14),
+    legend.position = "top",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  ) 
+)
+```
+
+```{r}
+getwd()
+```
+
+```{r}
+hyp_res <- read_csv("../output/tarca/full_hypergraph_results.csv")
+hyp_res
+
+loeuf <- read_tsv("../data/loeuf/gnomad.v4.1.constraint_metrics.tsv")
+loeuf
+```
+
+Column of interest from the constraint metrics is `lof.oe_ci.upper`, representing LOEUF: upper bound of 90% confidence interval for o/e ratio for high confidence pLoF variants (lower values indicate more constrained) ([gnomad_constraint_readme](https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/constraint/README.txt)).
+- according to that: < 0.6 -> significance threshold for constraint, the lower the more constrained
+
+```{r}
+# Filter LOEUF scores 
+loeuf_filtered <- loeuf %>%
+  select(chromosome, gene, transcript, canonical, lof.oe_ci.upper, lof.oe_ci.upper_bin_decile) %>%
+  filter(canonical == TRUE) %>%
+  distinct()
+
+# Map LOEUF scores to unfiltered hypergraph results
+loeuf_mapped_all <- right_join(loeuf_filtered, hyp_res, by = c("gene" = "entrez_gene_symbol")) %>%
+  distinct()
+
+loeuf_mapped_all <- loeuf_mapped_all %>%
+  drop_na(lof.oe_ci.upper, trimester) %>%
+  filter(group != "PPROM")
+  
+write_csv(loeuf_mapped_all, "../output/tarca/all_ranked_LOEUF_mapped_genes_control+sPTD.csv", col_names = TRUE)
+```
+
+```{r}
+loeuf_mapped_all %>%
+  select(gene, protein, trimester, group, canonical, lof.oe_ci.upper, norm_rank) %>%
+  unique() %>%
+  filter(lof.oe_ci.upper < 0.6) %>%
+  count(protein) # 296 proteins are constrained
+```
+
+
+```{r}
+loeuf_mapped_all %>%
+  select(gene, protein, trimester, group, canonical, lof.oe_ci.upper, norm_rank) %>%
+  unique() %>%
+  filter(lof.oe_ci.upper < 0.6) %>%
+  ggplot() + aes(x = lof.oe_ci.upper, y = norm_rank, colour = trimester) + geom_point() + facet_wrap(~group) + scale_colour_npg() + scale_fill_npg()
+```
+
+```{r}
+loeuf_mapped_all %>%
+  compare_means(norm_rank ~ group, data = ., method = "wilcox.test", group.by = "trimester", ref.group = "Control", p.adjust.method = "bonferroni")
+my_comparisons <- list(c("Control", "sPTD"))
+
+loeuf_mapped_all %>%
+  select(gene, protein, trimester, group, canonical, lof.oe_ci.upper, norm_rank) %>%
+  unique() %>%
+  #filter(lof.oe_ci.upper < 0.6) %>%
+  ggplot() + aes(x = group, y = norm_rank, colour = group) + facet_grid(~trimester) +
+  geom_boxplot() + scale_colour_npg() + scale_fill_npg() + 
+  stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) 
+
+loeuf_mapped_all %>%
+  select(gene, protein, trimester, group, canonical, lof.oe_ci.upper, norm_rank) %>%
+  unique() %>%
+  filter(lof.oe_ci.upper < 0.6) %>%
+  ggplot() + aes(x = group, y = norm_rank) + facet_grid(~trimester) +
+  geom_boxplot() + scale_colour_npg() + scale_fill_npg() + 
+  stat_compare_means(method = "wilcox.test", comparisons = my_comparisons) +
+  labs(X = "Group", y = "Normalised rank")
+```
+
+```{r}
+pca_loadings = c('Thrombin', 'Soggy-1', 'a2-Macroglobulin', 'Cadherin-6', 'IL-17 RC', 'Prothrombin', 'SIRT2', 'OBCAM', 'YES', 'amyloid precursor protein', 'PIM1', 'MRCKB', 'C4b', 'P-Selectin', 'STX1a', 'Apo B', 'SPARCL1', 'Calcineurin B a', 'MMEL2', 'CSF-1', 'Flt-3', 'Protease nexin I', 'HIPK3', 'a1-Antichymotrypsin', 'GOT1', 'JAK2', 'IGFBP-6', 'NOTC2', 'PCSK7', 'C3a', 'METAP1', 'PKC-B-II', 'Integrin a1b1', 'FER', 'Clusterin', 'TSP4', 'IF4A3', 'GPC5', 'LG3BP', 'Glucagon', 'PTHrP', 'LYVE1', 'Coagulation Factor V', 'TIMP-1', 'LAG-3', 'M2-PK', 'CAMK2B', 'H6ST1', 'CAMK2D', 'Coagulation Factor VII') # top 25 positive and negative PC1 loadings in second-trimester
+
+perc_10 = c("PDGF-CC", "FGF-20", "IgE", "IgM", "DEAD-box protein 19B", "Arylsulfatase A", "Cyclophilin A", "DcR3", "FCG2A/B", "GIIE", "HPV E7 Type 16", "IL-18 Ra", "IL-23", "LIMP II", "MAPKAPK3", "MEPE", "PPAC", "Rb", "TS", "VEGF-C", "carbonic anhydrase II", "dopa decarboxylase", "gpIIbIIIa", "transcription factor MLR1, isoform CRA_b", "IL-12 RB2", "C5b, 6 Complex", "IgD", "DSC3", "D-dimer", "b-Endorphin", "EMR2", "Galectin-8", "TS", "TNR4", "IL-17B", "ENA-78", "IL-15 Ra", "IL-10", "PKC-G", "Integrin a1b1", "C5b, 6 Complex", "CD70", "CDK5/p35", "CNTF", "Contactin-4", "DLL4", "EDA", "EMR2", "FGF9", "GFRa-1")
+
+de_targets = c('METAP1', 'JAK2', 'SPARCL1', 'SET', 'LYVE1', 'GPC5', 'SIRT2', 'UBE2N', 'FER', 'CAMK1', 'CAMK2B', 'CAMK2D', 'PIM1', 'PCSK7', 'CAMK2A', 'NR1D1', 'LIN7B', 'GAS1', 'PA2G4', 'PDPK1', 'GDF2', 'PTN', 'PARK7', 'CPNE1', 'PDK1', 'HIPK3', 'DSC3', 'BOC', 'C5', 'GOT1', 'MAPKAPK3', 'LY86', 'LY9', 'FYN', 'GREM1', 'PTH', 'UFM1', 'DMP1', 'MICA', 'FGFR4', 'COLEC12', 'RBM39', 'CKAP2', 'GPC2', 'PPIE', 'PCNA', 'CDON', 'PRL', 'ERP29', 'IL24')
+
+loeuf_mapped_all %>%
+  filter(protein %in% de_targets, lof.oe_ci.upper < 0.6) %>%
+  select(protein, lof.oe_ci.upper) %>%
+  unique()
+
+de_targets
+
+20/50
+9/50
+13/50
+```
+
+
+

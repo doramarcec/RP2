@@ -1,0 +1,71 @@
+---
+title: "Statistical testing"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(ggsci)
+library(rstatix)
+```
+
+```{r}
+har_res <- read_csv("../output/all-ranked-constrained-and-HAR-mapped-genes.csv")
+var_data <- read_csv("../data/adata_var.csv")
+```
+
+```{r}
+# Add more information to HAR-mapped genes
+variable_velocity <- var_data %>%
+  dplyr::select(gene, highly_variable, velocity_genes, velocity_gamma, velocity_qreg_ratio, velocity_r2)
+
+har_res <- har_res %>%
+  left_join(variable_velocity, by = "gene") %>%
+  distinct() %>%
+  dplyr::select(gene, leiden, cell_type, lof.oe_ci.upper, norm_rank, overlap_width, highly_variable, velocity_genes, velocity_gamma)
+```
+
+```{r}
+# Export the HAR-mapped gene info
+har_genes_info <- har_res %>%
+  select(gene, lof.oe_ci.upper, overlap_width, highly_variable, velocity_genes) %>%
+  distinct() %>%
+  arrange(lof.oe_ci.upper)
+
+write_csv(har_genes_info, "output/har_genes_info.csv")
+```
+
+# Statistical testing
+
+```{r}
+har_res <- har_res %>%
+  filter(norm_rank > 0.8)
+```
+
+```{r}
+# Are connectivity distributions (norm_ranks) different across cell types? No
+har_res %>%
+  kruskal_test(norm_rank~cell_type)
+
+har_res %>%
+  dunn_test(norm_rank~cell_type)
+
+# Are connectivity distributions (norm_ranks) different across leiden clusters? Yes
+har_res %>%
+  kruskal_test(norm_rank~leiden)
+
+dunn_res <- har_res %>%
+  dunn_test(norm_rank~leiden)
+
+dunn_res %>%
+  filter(p.adj < 0.01) %>%
+  arrange(p.adj)
+
+ggdensity(har_res, "norm_rank", facet.by = "leiden")
+ggdensity()
+
+har_res %>%
+  filter(leiden == "16")
+```
+

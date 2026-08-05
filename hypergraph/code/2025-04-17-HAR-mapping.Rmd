@@ -1,0 +1,584 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+#BiocManager::install("org.Hs.eg.db")
+#BiocManager::install("pathview")
+#BiocManager::install("TxDb.Hsapiens.UCSC.hg38.knownGene")
+packageVersion("enrichplot")
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggpubr)
+library(ggsci)
+library(readxl)
+library(GenomicRanges)
+```
+
+```{r}
+# Import the data
+hars <- read_excel("../data/HARs/science.abm1696_table_s1.xlsx")
+hars
+
+#hyp_res <- read_csv("../output/hypergraph_results_spearman_all_clusters.csv")
+#hyp_res
+
+hyp_filtered <- read_csv("../output/filtered_hypergraph_results_spearman.csv")
+hyp_filtered
+
+loeuf <- read_tsv("../data/loeuf/gnomad.v4.1.constraint_metrics.tsv")
+loeuf
+
+var_data <- read_csv("../data/trophectoderm_var.csv")
+var_data
+```
+
+```{r}
+# Filter LOEUF scores 
+loeuf_filtered <- loeuf %>%
+  dplyr::select(gene, gene_id, transcript, canonical, lof.oe_ci.upper, chromosome) %>%
+  filter(lof.oe_ci.upper < 0.6, canonical == TRUE) %>%
+  distinct()
+
+# Map LOEUF scores to the data
+#loeuf_mapped <- inner_join(loeuf_filtered, hyp_res, by = "gene") %>%
+#  distinct()
+
+loeuf_mapped <- inner_join(loeuf_filtered, hyp_filtered, by = "gene") %>%
+  distinct()
+```
+
+```{r}
+# Tidy the gene data
+genes <- var_data %>%
+  dplyr::select(Gene, accession, chromosome, start, end)
+
+names(genes)[names(genes) == 'Gene'] <- 'gene'
+
+# Tidy the HAR data
+hars$chrom <- str_replace(hars$chrom, "chr", "")
+names(hars)[names(hars) == 'chrom'] <- 'chromosome'
+
+# Tidy the LOEUF data
+loeuf_mapped$chromosome <- str_replace(loeuf_mapped$chromosome, "chr", "")
+genes_loeuf <- inner_join(genes, loeuf_mapped, by = "gene")
+
+genes_loeuf <- genes_loeuf %>%
+  dplyr::select(-chromosome.y)
+
+names(genes_loeuf)[names(genes_loeuf) == 'chromosome.x'] <- 'chromosome'
+```
+
+```{r}
+# Find overlaps between HARs and LOEUF-mapped genes
+genes_gr <- GRanges(seqnames = genes$chromosome,
+                    ranges = IRanges(start = genes$start, end = genes$end),
+                    gene = genes$gene)
+
+hars_gr <- GRanges(seqnames = hars$chromosome,
+                   ranges = IRanges(start = hars$start, end = hars$end),
+                   har_id = hars$simple_name)
+
+overlaps <- findOverlaps(genes_gr, hars_gr)
+```
+
+```{r}
+overlapping_regions <- pintersect(
+  genes_gr[queryHits(overlaps)],
+  hars_gr[subjectHits(overlaps)]
+)
+
+overlap_df <- data.frame(
+  gene = genes_gr[queryHits(overlaps)]$gene,
+  har_id = hars_gr[subjectHits(overlaps)]$har_id,
+  chr = as.character(seqnames(overlapping_regions)),
+  start = start(overlapping_regions),
+  end = end(overlapping_regions)
+)
+
+overlap_df$overlap_width <- width(overlapping_regions)
+```
+
+```{r}
+library(GenomicFeatures)
+library(AnnotationDbi)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(org.Hs.eg.db)
+
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+
+promoters <- promoters(txdb, upstream = 2000, downstream = 500)
+
+five_utrs <- fiveUTRsByTranscript(txdb, use.names = TRUE)
+three_utrs <- threeUTRsByTranscript(txdb, use.names = TRUE)
+five_utrs_gr <- unlist(five_utrs)
+three_utrs_gr <- unlist(three_utrs)
+
+exons <- exons(txdb)
+introns <- intronsByTranscript(txdb)
+
+promoter_overlaps <- findOverlaps(overlapping_regions, promoters)
+utr5_overlaps <- findOverlaps(overlapping_regions, five_utrs_gr)
+utr3_overlaps <- findOverlaps(overlapping_regions, three_utrs_gr)
+exon_overlaps <- findOverlaps(overlapping_regions, exons)
+intron_overlaps <- findOverlaps(overlapping_regions, introns)
+
+# Annotate type
+#region_type <- rep("intergenic", length(overlapping_regions)) # has no known coordinates but if the result is not matched to anything else it is most likely intergenic
+region_type[queryHits(intron_overlaps)] <- "intron"
+region_type[queryHits(promoter_overlaps)] <- "promoter"
+region_type[queryHits(exon_overlaps)] <- "exon"
+region_type[queryHits(utr5_overlaps)] <- "5'UTR"
+region_type[queryHits(utr3_overlaps)] <- "3'UTR"
+
+overlap_df$region_type <- region_type
+```
+
+```{r}
+har_res <- loeuf_mapped %>%
+  left_join(overlap_df, by = "gene") %>%
+  filter(!is.na(har_id)) %>%
+  dplyr::select(-c(canonical, chromosome, region_type))
+
+write_csv(har_res, "../output/filtered-ranked-constrained-and-HAR-mapped-genes.csv", col_names = TRUE) # The same when filtered
+
+har_res_summary <- har_res %>%
+  dplyr::select(gene, har_id, chr, start, end, overlap_width) %>%
+  distinct() %>%
+  dplyr::arrange(desc(overlap_width))
+
+write_csv(har_res_summary, "../output/filtered-ranked-constrained-and-HAR-mapped-genes-summary.csv", col_names = TRUE) 
+
+loeuf_hars <- har_res %>%
+  select(gene, lof.oe_ci.upper) %>%
+  distinct() %>%
+  arrange(lof.oe_ci.upper)
+write_csv(loeuf_hars, "output/loeuf_scores_of_har_genes.csv")
+```
+
+```{r}
+har_genes <- har_res_summary$gene
+loeuf1 <- loeuf %>%
+  dplyr::select(gene, lof.oe_ci.upper, lof.oe_ci.upper_bin_decile)
+
+har_genes_deciles <- inner_join(har_res_summary, loeuf1, by = "gene")
+har_genes_deciles %>%
+  unique()
+```
+
+```{r}
+loeuf_mapped_filtered %>%
+  filter(gene %in% c("EOMES", "FBN2", "ITGA5", "EGFR", "COL5A1", "COL5A2", "POU5F1", "THBS1", "SVEP1"), leiden == 28) %>%
+  unique()
+```
+
+```{r}
+# Hypernetwork centrality in HAR vs non-HAR genes - negligible - no relationship
+har_res %>%
+  mutate(har_status = ifelse(is.na(har_id), "Non-HAR", "HAR")) %>%
+  ggplot(aes(x = har_status, y = norm_rank)) +
+  geom_boxplot()
+
+# How many genes are mapped to HARs?
+har_res %>%
+  distinct(gene, har_id) %>%
+  count(gene, har_id) # 25 -> 4 genes map to two HARs
+
+har_res_filtered <- har_res %>%
+  select(gene, har_id, lof.oe_ci.upper, chromosome, leiden, cell_type, norm_rank, tissue)
+
+# No relationship between normalised ranks and LOEUF scores
+har_res %>%
+  filter(norm_rank > 0.80) %>%
+  ggplot() + aes(x = norm_rank, y = lof.oe_ci.upper) + geom_point()
+
+# The overlap has been found between HARs and 16 LOEUF-significant genes with canonical transcripts 
+har_res_filtered %>%
+  count(gene)
+
+# BNC2, RAP1GAP2, and ZFHX3 have been found overlapping with two HARs
+har_res_filtered %>%
+  count(gene, har_id)
+```
+
+```{r}
+devtools::install_github("thomasp85/scico")
+library(scico)
+
+scico(16, palette = 'managua')
+har_res %>%
+  distinct(gene)
+my_scico_palette <- c(
+  "ADAMTS2" = "#FFCE66",
+  "AGAP1" = "#EAAD5B",
+  "ALCAM" = "#D49052",
+  "BNC2" = "#C07348",
+  "CCNE1" = "#AB5B40",
+  "CHD7" = "#92463A",
+  "ETS1" = "#773339",
+  "MECOM" = "#5F283F",
+  "RABGAP1" = "#512C53",
+  "RAP1GAP2" = "#4C3D72",
+  "SDK2" = "#4D5492",
+  "SVEP1" = "#546EAD",
+  "TEAD1" = "#5F88C3",
+  "TLE4" = "#68A5D7",
+  "ZBTB16" = "#74C5EB",
+  "ZFHX3" = "#80E6FF"
+)
+
+newrownames <- str_replace(rownames(dds), "MSTRG\\.[0-9]+\\|", "")
+har_res$chromosome <- paste0("chr", har_res$chromosome)
+
+har_res %>%
+  filter(chromosome != "chrNA") %>%
+  ggdotplot(., "cell_type", "norm_rank",
+            add = "boxplot",
+            color = "gene", fill = "gene",
+            title = "Genetic constraint and HARs in first-trimester placenta across multiple chromosomes",
+            ylab = "Normalised rank",
+            xlab = "Cell type") + 
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    legend.title = element_blank(),
+    legend.position = "right"
+  ) + facet_wrap(~chromosome) + scale_color_manual(values = my_scico_palette) + scale_fill_manual(values = my_scico_palette)
+ggsave("output/hypergraph_analysis/genetic_constraint+HAR_results.png", width = 15, height = 7)
+```
+
+# Functional analysis
+```{r}
+library(annotables)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
+library(pathview)
+```
+
+```{r}
+# Sort out the LOEUF-mapped genes and the full hypergraph output for Functional Analysis
+var <- var_data %>%
+  column_to_rownames(var = "Gene")
+
+# Return the IDs for the gene symbols in the DE results
+idx <- grch38$symbol %in% rownames(var)
+ids <- grch38[idx, ]
+
+# Remove duplicate IDs
+non_duplicates <- which(duplicated(ids$symbol) == FALSE)
+ids <- ids[non_duplicates, ]
+
+# Merge the IDs with the results
+res_ids <- inner_join(var_data, ids, by=c("Gene"="symbol"))
+
+# Repeat the above steps for significant genes
+idx_sig <- grch38$symbol %in% loeuf_mapped$gene
+ids_sig <- grch38[idx_sig, ]
+non_duplicates2 <- which(duplicated(ids_sig$symbol) == FALSE)
+ids_sig <- ids_sig[non_duplicates2, ]
+sig_res_ids <- inner_join(loeuf_mapped, ids_sig, by=c("gene"="symbol"))
+sig_res_ids <- sig_res_ids %>%
+  distinct(gene)
+
+# Repeat for HAR-mapped genes
+har_idx <- grch38$symbol %in% har_res$gene
+har_ids <- grch38[har_idx, ]
+non_duplicates3 <- which(duplicated(har_ids$symbol) == FALSE)
+har_ids <- har_ids[non_duplicates3, ]
+sig_har_ids <- inner_join(har_res, har_ids, by=c("gene"="symbol"))
+sig_har_ids <- sig_har_ids %>%
+  distinct(gene)
+
+# Create a background dataset for hypergeometric testing using all genes tested for significance in the results
+all_genes <- as.character(res_ids$Gene)
+
+# Significant results (LOEUF)
+sig_genes <- as.character(sig_res_ids$gene)
+
+# Significant results (HARs)
+sig_genes_har <- as.character(sig_har_ids$gene)
+```
+
+```{r}
+# Biological functions
+ego <- enrichGO(gene = sig_genes_har,
+                universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "BP",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.05,
+                readable = TRUE)
+
+BP <- data.frame(ego) %>%
+  dplyr::filter(p.adjust < 0.01)
+
+write_csv(BP, "../output/TE_biological_processes_HAR_mapped_genes.csv", col_names = TRUE)
+
+# Molecular functions
+ego1 <- enrichGO(gene = sig_genes_har,
+                universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "MF",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.05,
+                readable = TRUE)
+
+MF <- data.frame(ego1) %>%
+  dplyr::filter(p.adjust < 0.01)
+
+write_csv(MF, "../output/GO/molecular_functions_LOEUF_mapped_genes.csv", col_names = TRUE)
+
+# Cellular components
+ego2 <- enrichGO(gene = sig_genes_har,
+                universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "CC",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.05,
+                readable = TRUE)
+
+CC <- data.frame(ego2) %>%
+  dplyr::filter(p.adjust < 0.01)
+
+write_csv(CC, "../output/GO/cellular_components_LOEUF_mapped_genes.csv")
+```
+
+```{r}
+# Dotplots
+dotplot(ego) + scale_fill_gradient(low = "#D46276", high = "#fdbf6f")
+ggsave("../output/GO/bio_processes_dotplot_final.png", width = 10, height = 7)
+
+dotplot(ego1) + scale_fill_gradient(low = "#D46276", high = "#fdbf6f")
+ggsave("../output/GO/mol_functions_dotplot_final.png", width = 10, height = 7)
+
+dotplot(ego2) + scale_fill_gradient(low = "#D46276", high = "#fdbf6f")
+ggsave("../output/GO/cell_compartments_dotplot_final.png", width = 10, height = 7)
+```
+
+```{r}
+ego <- enrichplot::pairwise_termsim(ego)
+ego1 <- enrichplot::pairwise_termsim(ego1)
+ego2 <- enrichplot::pairwise_termsim(ego2)
+
+emapplot(ego) + scale_color_gradient(low = "#D46276", high = "#fdbf6f")
+ggsave("../output/GO/bio_processes_emapplot.png", width = 10, height = 7)
+
+emapplot(ego1, showCategory = 10) + scale_color_gradient(low = "#D46276", high = "#fdbf6f")
+ggsave("../output/GO/mol_functions_emapplot.png", width = 10, height = 7)
+
+emapplot(ego2, showCategory = 10) + scale_color_gradient(low = "#D46276", high = "#fdbf6f")
+ggsave("../output/GO/cell_compartments_emapplot.png", width = 10, height = 7)
+```
+
+```{r}
+# Category netplots
+# To colour the genes by log2Fold changes, log2Fold change column needs to be extracted from the results table, creating a vector
+norm_ranks <- loeuf_mapped$norm_rank
+names(norm_ranks) <- loeuf_mapped$gene
+
+cnetplot(ego1,
+         categorySize="pvalue",
+         showCategory = 10,
+         foldChange=DE_foldchanges1,
+         vertex.label.font=2) 
+ggsave(here("output/mol_functions_cnetplot.png"), width = 10, height = 7)
+
+cnetplot(ego2,
+         categorySize="pvalue",
+         showCategory = 5,
+         foldChange=DE_foldchanges1,
+         vertex.label.font=2) 
+ggsave(here("output/cell_compartments_cnetplot.png"), width = 10, height = 7)
+
+ego
+
+cnetplot(ego,
+         categorySize="pvalue",
+         #showCategory = categories2,
+         foldChange = norm_ranks,
+         vertex.label.font=2,
+         node_label = "all", 
+         layout = "gem") + scale_colour_gradient(low = "#D46276", high = "#fdbf6f")
+ggsave("../output/cnetplot_key.png", width = 10, height = 7)
+```
+
+```{r}
+# GSEA and KEGG pathway annotation
+gene_list <- har_res$norm_rank # swap loeuf_mapped for har_res
+names(gene_list) <- har_res$gene
+gene_list <- sort(gene_list, decreasing = TRUE) 
+
+# Convert gene symbols to entrez IDs
+entrez_ids <- bitr(names(gene_list),
+                   fromType = "SYMBOL",
+                   toType = "ENTREZID",
+                   OrgDb = org.Hs.eg.db)
+
+entrez_ids_list <- gene_list[entrez_ids$SYMBOL]
+names(entrez_ids_list) <- entrez_ids$ENTREZID
+
+# Run GSEA
+gsea_kegg <- gseKEGG(geneList = entrez_ids_list,
+                     organism = "hsa",
+                     minGSSize = 10,
+                     pvalueCutoff = 0.05)
+
+# Extract GSEA results
+gseaKEGG_results <- gsea_kegg@result
+gseaKEGG_results <- setReadable(gsea_kegg, OrgDb = org.Hs.eg.db, keyType="ENTREZID")
+
+# Save results to csv file
+view(gseaKEGG_results)
+gsea_res <- as.data.frame(gseaKEGG_results)
+write_csv(gsea_res, "../output/KEGG/GSEA_KEGG_results.csv", col_names = TRUE)
+
+# Output images for a single significant KEGG pathway
+#detach("package:dplyr", unload=TRUE) # first unload dplyr to avoid conflicts
+pathview(gene.data = entrez_ids_list,
+         pathway.id = "hsa04820",
+         species = "hsa",
+         limit = list(gene = 2, # value gives the max/min limit for fold changes
+                      cpd = 1))
+# GSEA plots
+# hsa04820: Cytoskeleton in muscle cells
+gseaplot(gsea_kegg, geneSetID = 'hsa04820', title = gsea_kegg$Description[1])
+gseaplot2(gsea_kegg, geneSetID = 'hsa04820', title = gsea_kegg$Description[1])
+
+ggsave("../output/KEGG/GSEA_plot.png")
+
+enriched_genes_list <- c("COL1A1", "SYNE1", "COL5A1", "COL1A2", "COL5A2", "COL4A1", "VIM", "ATP1B1", "THBS1", "FBN2", "VCAN", "FLNC", "ACTC1", "SYNE2", "COL27A1", "ITGA5", "INF2")
+enriched_genes
+
+enriched_genes <- loeuf_mapped %>%
+  filter(gene %in% enriched_genes_list) %>%
+  dplyr::select(gene, leiden, cell_type, lof.oe_ci.upper, norm_rank) %>%
+  distinct() %>%
+  arrange(lof.oe_ci.upper)
+
+var_data %>%
+  select(gene, leiden, cell_type, lof.oe_ci.upper, norm_rank, highly_variable, velocity_genes, velocity_gamma, velocity_qreg_ratio, velocity_r2)
+
+kegg_pathway_enriched_genes <- enriched_genes %>%
+  left_join(var_data, by = "gene") %>%
+  dplyr::select(gene, leiden, cell_type, lof.oe_ci.upper, norm_rank, highly_variable, velocity_genes, velocity_gamma, velocity_qreg_ratio, velocity_r2)
+
+write_csv(kegg_pathway_enriched_genes, "../output/KEGG/pathway_enriched_genes.csv")
+
+kegg_pathway_enriched_genes %>%
+  count(leiden) %>%
+  arrange(n) # 19, 16, 12 (especially!)
+```
+
+```{r}
+# Extract the leading edge
+leading_edge <- gsea_res %>%
+  dplyr::pull(core_enrichment) %>%
+  stringr::str_split("/", simplify = TRUE) %>%
+  as.vector()
+
+# Extract the ranking scores
+gene_list <- entrez_ids_list %>%
+  filter(gene %in% leading_edge)
+
+# Add additional details
+gene_list <- gene_list %>%
+  left_join(loeuf_mapped_filtered) %>%
+  dplyr::select(gene, cell_type, leiden, score, lof.oe_ci.upper, norm_rank)
+
+write_csv(gene_list, "../output/KEGG/leading_edge_info_HUBS.csv")
+
+gsea1 <- enrichplot::gseaplot2(gsea_kegg, geneSetID = "hsa04820", returnData = TRUE)
+head(gsea1)
+peak_gene <- gsea1[which.max(gsea1$runningScore), ]
+peak_gene
+
+# Example: manually accessing the running score
+
+# Access the GSEA result for the pathway
+gsea_pathway_data <- gsea_kegg@result[gsea_kegg@result$ID == "hsa04820", ]
+
+# Core enrichment genes
+leading_edge_genes <- unlist(strsplit(gsea_pathway_data$core_enrichment, "/"))
+
+# Your original gene list
+gene_list <- gsea_kegg@geneList
+
+# Find the positions and scores
+gene_pos <- match(leading_edge_genes, names(gene_list))
+
+# Order properly
+gene_pos <- sort(gene_pos)
+
+# Now you can approximate the peak manually
+leading_edge_scores <- gene_list[gene_pos]
+
+# Find the gene with the highest score among leading-edge genes
+peak_gene <- names(leading_edge_scores)[which.max(abs(leading_edge_scores))]
+
+peak_gene #COL1A1
+
+```
+
+```{r}
+# Convert gene ID to symbol
+egox <- setReadable(ego, 'org.Hs.eg.db', 'ENTREZID')
+ego1x <- setReadable(ego1, 'org.Hs.eg.db', 'ENTREZID')
+ego2x <- setReadable(ego2, 'org.Hs.eg.db', 'ENTREZID')
+
+# Heatmap-like functional classification
+gene_list <- loeuf_mapped$norm_rank
+names(gene_list) <- loeuf_mapped$gene
+
+har_list <- har_res$norm_rank
+names(har_list) <- har_res$gene
+
+# Filter the egox object
+selected_genes <- names(har_list)
+egox_filtered <- egox
+egox_filtered@result$geneID <- sapply(strsplit(egox@result$geneID, "/"), function(gene_vec) {
+  paste(intersect(gene_vec, selected_genes), collapse = "/")
+})
+
+p1 <- heatplot(egox_filtered, foldChange=har_list, showCategory=10)
+p1
+ggsave("../output/bio_process_heatmap_functional_classification.png", width = 10, height = 7)
+
+p2 <- heatplot(ego1x, foldChange=har_list, showCategory=10)
+p2
+ggsave("../output/mol_functions_hmfc.png"), width = 14, height = 7)
+
+p3 <- heatplot(ego2x, foldChange=har_list, showCategory=10)
+p3
+ggsave("../output/cell_compartment_hmfc.png"), width = 14, height = 7)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

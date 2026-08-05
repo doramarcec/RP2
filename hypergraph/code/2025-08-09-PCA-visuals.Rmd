@@ -1,0 +1,178 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(ggsci)
+theme_set(
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 12, colour = "black"),
+    axis.title = element_text(size = 13),
+    title = element_text(size = 14),
+    legend.position = "top",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  )
+)
+```
+
+```{r}
+second_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_second_trimester.csv")
+third_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_third_trimester.csv")
+
+pca_W <- read_csv("../data/tarca_et_al_2021/PCA_W2.csv")
+pca_W <- pca_W %>%
+  column_to_rownames(var = "...1")
+pca_scores <- read_csv("../data/tarca_et_al_2021/PCA_scores2.csv")
+
+pca_W3 <- read_csv("../data/tarca_et_al_2021/PCA_W3.csv")
+pca_W3 <- pca_W3 %>%
+  column_to_rownames(var = "...1")
+pca_scores3 <- read_csv("../data/tarca_et_al_2021/PCA_scores3.csv")
+
+central_clusters <- read_csv("../output/tarca/central_clusters.csv")
+```
+
+```{r}
+st <- pca_scores %>%
+  ggplot() + aes(x = PC1, y = PC2, fill = GEO_accession, colour = GEO_accession, shape = Group) + 
+  geom_point(size = 1.75, alpha = 0.6) + scale_shape_manual(values = c(21, 22, 24)) + scale_colour_npg() + scale_fill_npg() + 
+  labs(x = "PC1: 17.26% Variance", y = "PC2: 12.07% Variance") 
+
+tt <- pca_scores3 %>%
+  ggplot() + aes(x = PC1, y = PC2, fill = GEO_accession, colour = GEO_accession, shape = Group) + 
+  geom_point(size = 1.75, alpha = 0.6) + scale_shape_manual(values = c(21, 22, 24)) + scale_colour_npg() + scale_fill_npg() +
+  labs(x = "PC1: 27.68% Variance", y = "PC2: 7.46% Variance")
+
+gg1 <- ggarrange(
+  st, tt,
+  common.legend = TRUE, legend = "top"
+  )
+
+ggsave("../output/tarca/visuals/PCA.tiff", height = 6, width = 8)
+```
+
+```{r}
+# Comparison of scores on PC1
+pca_scores %>%
+  compare_means(PC1 ~ Group, data = ., method = "wilcox.test", p.adjust.method = "bonferroni")
+my_comparisons <- list(c("Control", "PPROM"), c("sPTD", "PPROM"), c("Control", "sPTD"))
+
+st2 <- pca_scores %>%
+  ggplot() + aes(x = Group, y = PC1, colour = GEO_accession) + geom_boxplot() + scale_colour_npg() +
+  stat_compare_means(comparisons = my_comparisons, 
+                     method = "wilcox.test", 
+                     ref.group = "Control", 
+                     label = "p.signif", 
+                     p.adjust.method = "bonferroni") + ylab("PC1 Scores")
+tt2 <- pca_scores3 %>%
+  ggplot() + aes(x = Group, y = PC1, colour = GEO_accession) + geom_boxplot() + scale_colour_npg() +
+  stat_compare_means(comparisons = my_comparisons, 
+                     method = "wilcox.test", 
+                     ref.group = "Control", 
+                     label = "p.signif", 
+                     p.adjust.method = "bonferroni") + ylab("PC1 Scores")
+gg2 <- ggarrange(
+  st2, tt2,
+  common.legend = TRUE, legend = "top"
+  )
+
+ggsave("output/tarca/visuals/PCA1_scores.tiff", height = 6, width = 8)
+```
+
+```{r}
+ggarrange(
+  gg1, gg2, 
+  common.legend = FALSE, legend = "top", nrow = 2
+)
+```
+# Which original components from central clusters are most correlated with PC1?
+```{r}
+original_components <- central_clusters %>%
+  filter(trimester == "Second", central_cluster == "sPTD-specific")
+original_components <- as.list(original_components$target)
+
+W2 <- pca_W %>%
+  rownames_to_column(var = "target") %>%
+  filter(target %in% original_components) %>%
+  select(target, PC1) %>%
+  arrange(PC1)
+```
+```{r}
+library(ggplot2)
+library(ggrepel)
+
+feature <- 'UBE2N'
+#topN <- 20
+XPC <- 'PC1'
+YPC <- 'PC2'
+
+# Compute magnitude of features in 2D PCA space
+FeaturePCMagnitudes <- pca_W[,XPC]^2 + pca_W[,YPC]^2
+FeaturePCMagnitudes <- sort(FeaturePCMagnitudes, decreasing = TRUE)
+top_features <- names(FeaturePCMagnitudes)[1:topN]
+
+# Create data frames for plotting
+pca_scores$feature_value <- data[[feature]]
+pca_scores$label <- rownames(pca_scores)
+
+loadings_df <- data.frame(
+  feature = top_features,
+  x = W[top_features, XPC]*2.5,
+  y = W[top_features, YPC]*2.5
+)
+
+# Base plot
+p <- ggplot(pca_scores, aes_string(x=XPC, y=YPC)) +
+  geom_point(aes(color=feature_value), size=2) +
+  scale_color_viridis_c(option="viridis") +
+  geom_hline(yintercept=0, linetype="dashed", color="grey") +
+  geom_vline(xintercept=0, linetype="dashed", color="grey") +
+  labs(x=XPC, y=YPC, color=feature) +
+  theme_minimal()
+
+# Add arrows for top features
+for(i in 1:nrow(loadings_df)){
+  p <- p + geom_segment(aes(x=0, y=0, xend=loadings_df$x[i], yend=loadings_df$y[i]),
+                        arrow=arrow(length=unit(0.2,"cm")), color=i) +
+    geom_text_repel(aes(x=loadings_df$x[i], y=loadings_df$y[i], label=loadings_df$feature[i]),
+                    color=i)
+}
+p
+```
+
+```{r}
+library(ggplot2)
+library(patchwork)  # for arranging multiple plots
+
+features <- c("JAK2", "SET", "GPC5", "UBE2N", "PCSK7", "NR1D1", "PA2G4", "PDPK1")
+
+XPC <- "PC1"
+YPC <- "PC2"
+
+plots <- list()  # to store individual plots
+
+for (feature in features) {
+  # Create a scatter plot colored by the feature
+  p <- ggplot(second_trimester, aes_string(x = XPC, y = YPC, color = feature)) +
+    geom_point(size = 3, stroke = 0.5) +
+    scale_color_viridis_c() +
+    labs(title = feature, color = feature, x = XPC, y = YPC) +
+    theme_minimal()
+  
+  plots[[feature]] <- p
+}
+
+# Arrange plots in 2 rows x 4 columns
+final_plot <- wrap_plots(plots, nrow = 2, ncol = 4)
+final_plot
+
+```
+
+

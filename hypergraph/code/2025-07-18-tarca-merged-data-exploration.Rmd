@@ -1,0 +1,257 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+data <- read_csv("../data/tarca_et_al_2021/merged_normalised_datasets_for_modelling.csv")
+data %>%
+  filter(GEO_accession != "GSE150167") %>%
+  count(Individual, GA) %>%
+  count(Individual) %>%
+  arrange(n)
+```
+
+```{r}
+data %>%
+  filter(GEO_accession == "GSE150167") %>%
+  count(Log2RFU) %>% # range: 3.26 - 19.26
+  arrange(desc(Log2RFU))
+
+data %>%
+  filter(GEO_accession != "GSE150167") %>%
+  count(Log2RFU) %>% # range: 5.88 - 19.19
+  arrange(desc(Log2RFU))
+```
+
+# Structure of raw data and quality control
+```{r}
+# How many gestational age measurements?
+data %>%
+  count(GA)
+
+# Divide dataset into trimesters
+data <- data %>% 
+  mutate(Trimester = case_when(
+    GA <= 13 ~ "First trimester",
+    GA > 13 & GA <= 27 ~ "Second trimester",
+    GA > 27 ~ "Third trimester"
+  ))
+
+data %>%
+  count(Trimester)
+```
+
+```{r}
+data %>%
+  group_by(Trimester) %>%
+  count(Group)
+
+# Remove first trimester as it only contains controls
+data <- data %>%
+  filter(Trimester != "First trimester")
+
+second_trimester <- data %>%
+  filter(Trimester == "Second trimester")
+
+third_trimester <- data %>%
+  filter(Trimester == "Third trimester")
+```
+
+```{r}
+# How many patients in the second trimester? 
+second_trimester %>%
+  count(Accession) %>%
+  distinct(Accession) # 372
+
+# What is the distribution of outcomes?
+second_trimester %>%
+  count(Group) # majority controls
+
+# How many distinct targets were measured in the second trimester?
+second_trimester %>%
+  count(Target) %>%
+  unique() %>% # 1,166 
+  count(n) # (n varies between 105, 267, 372, 639, 906, 1173, 2241, 2508 and 9078)
+
+# Identify targets with higher measurements and see how many measurements per patient
+second_trimester %>%
+  count(Target) #%>%
+  #filter(n == 9078) # No Protein (??? remove)
+  #filter(n == 2508) # HSP 70
+  #filter(n == 2241) # Tenascin
+  #filter(n == 1173) # GPNMB, IGFBP-2, Macrophage scavenger receptor
+  #filter(n == 906) # JNK2
+  #filter(n == 639) # ABL2
+  #filter(n == 372) # ABL1
+  #filter(n == 267) # ANR63
+  #filter(n == 105) # BARK1
+  
+```
+
+*The reason for the variation in n*
+>Maternal plasma protein abundance was determined by using the SOMAscan platform v4.1, which is based on SOMAmer (slow off-rate modified aptamer) reagents. This platform allowed multiplexed quantification of 7288 analytes, corresponding to 6596 unique human protein targets in maternal plasma samples. Of these, 88.7% of proteins had one single assay, 10.4% had two, and less than 1% of proteins had 3–9 assays present on the platform ([Tarca et al., 2022](https://pubs.acs.org/doi/10.1021/acs.jproteome.2c00391)).
+
+To do:
+- remove "No Protein" target (9,078 rows in total)
+- remove duplicates: targets with high n (line 59) have up to 9 samples taken in GSE206454 study (e.g. HSP 70), but all recorded at the same gestational age... useless
+
+```{r}
+second_trimester %>%
+  filter(Target != "No Protein") %>%
+  distinct(Accession, Target, .keep_all = TRUE) #%>% # drops from 505,809 rows to 408,888 rows -> not too bad!
+  # How many subjects now?
+  #count(Accession) %>% # 372 still, all good!
+  # How many targets now?
+  #count(Target) # 1165, all good here too!
+```
+
+Apply the changes and export the filtered dataset.
+```{r}
+second_trimester <- second_trimester %>%
+  filter(Target != "No Protein") %>%
+  distinct(Accession, Target, .keep_all = TRUE)
+
+# How many measurements per target are there now?
+second_trimester %>%
+  count(Target) %>%
+  unique() %>% 
+  count(n) # Ranging from 105 to 267 to 372! 
+
+second_trimester %>%
+  filter(GEO_accession == "GSE206454") %>%
+  count(GEO_accession, Individual) %>%
+  count(n)
+
+second_trimester %>%
+  count(GA)
+# 2178 - dupli uzorci (e.g. GA 13.1 i 21.1), 
+# 3267 - tri uzorka (19.6, 23.6 i 26.6), 
+# 4356 - 4 uzorka (14.6, 18.6, 22.6, 25.6)
+
+#write_csv(second_trimester, "../data/tarca_et_al_2021/merged_second_trimester_normalised.csv")
+```
+
+Repeat the above steps for third trimester data frame now.
+```{r}
+# How many patients in the third trimester? 
+third_trimester %>%
+  count(Accession) %>%
+  distinct(Accession) # 326
+
+# What is the distribution of outcomes?
+third_trimester %>%
+  count(Group) # majority controls
+
+# How many distinct targets were measured in the second trimester?
+third_trimester %>%
+  count(Target) %>%
+  unique() %>% # 1,166, same as in the second trimester
+  count(n) # (n varies between 105, 221, 326, 547, 768, 989, 1873, 2094 and 7514)
+
+# Identify targets with higher measurements and see how many measurements per patient
+third_trimester %>%
+  count(Target) #%>%
+  #filter(n == 7514) # No Protein (??? remove)
+  #filter(n == 2094) # HSP 70
+  #filter(n == 1873) # Tenascin
+  #filter(n == 989) # GPNMB, IGFBP-2, Macrophage scavenger receptor
+  #filter(n == 768) # JNK2
+  #filter(n == 547) # ABL2
+  #filter(n == 326) # ABL1
+  #filter(n == 221) # ANR63
+  #filter(n == 105) # BARK1
+```
+
+To do as above:
+- remove "No Protein" target 
+- remove duplicates
+```{r}
+third_trimester <- third_trimester %>% 
+  filter(Target != "No Protein") %>%
+  distinct(Accession, Target, .keep_all = TRUE)
+
+# How many measurements per target are there now?
+third_trimester %>%
+  count(Target) %>%
+  unique() %>% 
+  count(n) # Ranging from 105 to 221 to 326! 
+
+third_trimester %>%
+  filter(GEO_accession == "GSE206454") %>%
+  count(GEO_accession, Individual) %>%
+  count(n)
+
+third_trimester %>%
+  count(GA)
+
+#write_csv(third_trimester, "../data/tarca_et_al_2021/merged_third_trimester_normalised.csv")
+```
+
+Summary:
+- removed first trimester samples as they contained only controls
+- segregated the data into second and third trimester datasets
+- removed duplicate target measurements per sample in both datasets
+
+# Batch effects
+```{r}
+bioc_deps <- c("GO.db", "impute", "preprocessCore", "pvca","sva" )
+cran_deps <- c("corrplot", "data.table", "ggplot2", "ggfortify","lazyeval", "pheatmap", "reshape2", "rlang", 
+               "tibble", "dplyr", "tidyr", "wesanderson","WGCNA") 
+               
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+#BiocManager::install(bioc_deps) 
+#install.packages(cran_deps)
+
+BiocManager::install(version = "3.18") 
+BiocManager::install("proBatch")
+```
+
+# PCA visualisation
+```{r}
+second_trimester %>%
+  select(Accession, Group, Target, Log2RFU) %>%
+  pivot_wider(names_from = "Target", values_from = "Log2RFU") %>%
+  column_to_rownames(var = "Accession")
+```
+
+```{r}
+third_trimester %>%
+  select(Accession, Group, Target, Log2RFU) %>%
+  pivot_wider(names_from = "Target", values_from = "Log2RFU") %>%
+  column_to_rownames(var = "Accession")
+```
+
+# Potential biomarkers
+```{r}
+potential_markers <- c("AGER", "APOB", "PTHLH", "YES1", "LAG3", "A2M", "LY86", "CDON", "SERPINA5", "CSNK2A1", "APP", "PLAUR", "PDE11A", "PCSK7", "EIF5", "SORCS2", "ITIH4", "IMPDH2", "JAK2")
+
+data %>%
+  select(Accession, EntrezGeneSymbol, GA, Log2RFU) %>%
+  filter(Accession == "GSM6254314", EntrezGeneSymbol %in% potential_markers) %>%
+  arrange(EntrezGeneSymbol)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

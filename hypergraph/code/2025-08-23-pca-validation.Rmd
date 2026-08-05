@@ -1,0 +1,180 @@
+---
+title: "PCA validation"
+output: html_notebook
+---
+
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("sva")
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(sva)
+library(softImpute)
+library(limma)
+#library(variancePartition)
+#library(missMDA)
+#library(FactoMineR)
+```
+
+```{r}
+trimester2 <- read_csv("../data/tarca-et-al-2021/merged_second_trimester_normalised.csv")
+trimester3 <- read_csv("../data/tarca-et-al-2021/merged_third_trimester_normalised.csv")
+```
+
+```{r}
+trimester2 <- trimester2 %>%
+  clean_names()
+trimester3 <- trimester3 %>%
+  clean_names()
+
+second_trimester_filtered = second_trimester[['Accession', 'GEO_accession', 'Group', 'GA_delivery', 'Target', 'Log2RFU']]
+second_trimester_filtered = second_trimester_filtered.set_index(['Accession', 'GEO_accession', 'Group', 'GA_delivery'])
+second_trimester_filtered = second_trimester_filtered.pivot(columns = 'Target', values = 'Log2RFU')
+second_trimester_filtered
+```
+
+```{r}
+second_trimester_filtered <- trimester2 %>%
+  select(accession, geo_accession, group, ga_delivery, target, log2rfu) %>%
+  pivot_wider(id_cols = c('accession', 'geo_accession', 'group', 'ga_delivery'),
+              values_from = log2rfu,
+              names_from = target)
+
+third_trimester_filtered <- trimester3 %>%
+  select(accession, geo_accession, group, ga_delivery, target, log2rfu) %>%
+  pivot_wider(id_cols = c('accession', 'geo_accession', 'group', 'ga_delivery'),
+              values_from = log2rfu,
+              names_from = target)
+```
+
+```{r}
+# Prep the data
+second_trimester_metadata <- second_trimester_filtered[, c("accession", "geo_accession", "group", "ga_delivery")]
+second_trimester_metadata <- second_trimester_metadata %>%
+  column_to_rownames(var = "accession")
+second_trimester_data <- second_trimester_filtered[, !(names(second_trimester_filtered) %in% c("geo_accession", "group", "ga_delivery"))]
+second_trimester_data <- second_trimester_data %>%
+  column_to_rownames(var = "accession")
+```
+
+```{r}
+# Step 1: Normalize the data
+second_trimester_normalised <- sweep(second_trimester_data, 2, apply(second_trimester_data, 2, median, na.rm = TRUE), "/")
+
+# Step 2: SoftImpute the missing values
+soft_imputer <- softImpute(as.matrix(second_trimester_normalised), maxit = 100, trace = TRUE)
+second_trim_imputed_array <- complete(as.matrix(second_trimester_normalised), soft_imputer)
+
+# Step 3: Reconstruct data frame
+second_trimester_imputed_norm <- as.data.frame(second_trim_imputed_array)
+rownames(second_trimester_imputed_norm) <- rownames(second_trimester_normalised)
+colnames(second_trimester_imputed_norm) <- colnames(second_trimester_normalised)
+second_trimester_imputed_norm
+
+# Step 4: Batch correct
+batch <- second_trimester_metadata$geo_accession
+group <- second_trimester_metadata$group
+#mod <- model.matrix(~ group, data = second_trimester_metadata)
+mod_simple <- model.matrix(~ 1, data = second_trimester_metadata)
+
+combat_corrected <- ComBat(dat = t(as.matrix(second_trimester_imputed_norm)),
+                           batch = batch,
+                           mod = mod_simple, # Use the simple model
+                           par.prior = TRUE,
+                           prior.plots = FALSE)
+combat_corrected <- t(combat_corrected)
+
+# 4.2. limma's removeBatchEffect
+limma_corrected <- removeBatchEffect(t(as.matrix(second_trimester_imputed_norm)),
+                                     batch = batch,
+                                     design = mod_simple)
+
+# 4.3. PCA-based approach with missMDA (if you want to try integrated imputation/correction)
+# First, estimate number of dimensions for imputation
+#nb_dim <- estim_ncpPCA(t(as.matrix(second_trimester_imputed_norm)), ncp.max = 10)
+# Perform imputation with estimated dimensions
+#imputed_data <- imputePCA(t(second_trimester_imputed_norm), ncp = nb_dim$ncp)
+# Now perform PCA on imputed data
+#res.pca <- PCA(imputed_data$completeObs, graph = FALSE)
+# Extract coordinates for the first few principal components
+#mda_corrected <- res.pca$ind$coord
+
+# Visualization function for PCA results
+# Improved visualization function with better error handling
+plot_pca <- function(pca_data, title, metadata) {
+  # Create a data frame with PCA coordinates
+  pca_df <- as.data.frame(pca_data)
+  
+  # Check if PCA data has row names
+  if(is.null(rownames(pca_df))) {
+    warning("PCA data doesn't have row names. Using sequential indexing.")
+    rownames(pca_df) <- 1:nrow(pca_df)
+  }
+  
+  # Check if metadata has row names
+  if(is.null(rownames(metadata))) {
+    warning("Metadata doesn't have row names. Using sequential indexing.")
+    rownames(metadata) <- 1:nrow(metadata)
+  }
+  
+  # Find common row names between PCA results and metadata
+  common_rows <- intersect(rownames(pca_df), rownames(metadata))
+  
+  if(length(common_rows) == 0) {
+    stop("No common row names between PCA results and metadata.")
+  }
+  
+  # Subset both data frames to common rows
+  pca_df <- pca_df[common_rows, ]
+  metadata_sub <- metadata[common_rows, ]
+  
+  # Add metadata to the PCA data frame
+  pca_df$group <- metadata_sub$group
+  pca_df$geo_accession <- metadata_sub$geo_accession
+  
+  # Check for NA values in aesthetics
+  if(any(is.na(pca_df$group)) || any(is.na(pca_df$geo_accession))) {
+    warning("NA values found in aesthetic mappings. These points will not be plotted.")
+  }
+  
+  ggplot(pca_df, aes(x = PC1, y = PC2, color = group, shape = geo_accession)) +
+    geom_point(size = 3) +
+    ggtitle(title) +
+    theme_minimal()
+}
+
+# Perform PCA on each corrected dataset
+pca_combat <- prcomp(t(combat_corrected), scale. = TRUE)
+pca_limma <- prcomp(t(limma_corrected), scale. = TRUE)
+
+# Plot results
+plot_pca(pca_combat$x[, 1:2], "PCA after ComBat Correction", second_trimester_metadata)
+plot_pca(pca_limma$x[, 1:2], "PCA after limma Correction", second_trimester_metadata)
+#plot_pca(mda_corrected[, 1:2], "PCA with missMDA Approach", second_trimester_metadata)
+```
+
+```{r}
+# Check dimensions and row names
+cat("ComBat corrected dimensions:", dim(combat_corrected), "\n")
+cat("ComBat corrected row names:", head(rownames(combat_corrected)), "\n")
+cat("Metadata row names:", head(rownames(second_trimester_metadata)), "\n")
+
+# Check if any NA values in the metadata
+cat("NA values in group:", sum(is.na(second_trimester_metadata$group)), "\n")
+cat("NA values in geo_accession:", sum(is.na(second_trimester_metadata$geo_accession)), "\n")
+```
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,166 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+```
+
+```{r}
+# Import the data
+second_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_second_trimester.csv")
+second_trimester
+
+third_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_third_trimester.csv")
+third_trimester
+```
+
+```{r}
+# Tidy the data
+second_trimester$Trimester <- "Second"
+third_trimester$Trimester <- "Third"
+
+second_trimester <- second_trimester %>%
+  clean_names()
+third_trimester <- third_trimester %>%
+  clean_names()
+
+# Join the data
+full_data <- full_join(second_trimester, third_trimester)
+full_data <- full_data %>%
+  clean_names()
+```
+
+```{r}
+# Export the files for GNN
+se <- function(x) sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
+
+protein_meta <- full_data %>%
+  group_by(target, trimester, group) %>%
+  summarize(
+    mean_log2rfu = mean(log2rfu, na.rm = TRUE),
+    median_log2rfu = median(log2rfu, na.rm=TRUE),
+    sd_log2rfu = sd(log2rfu, na.rm=TRUE),
+    se_log2rfu = se(log2rfu),
+    iqr_25 = quantile(log2rfu, 0.25, na.rm=TRUE),
+    iqr_75 = quantile(log2rfu, 0.75, na.rm=TRUE),
+    .groups = "drop"
+  )
+
+# Create a column combining trimester & group as one category
+protein_meta <- protein_meta %>%
+  unite("condition", trimester, group, sep = "_")
+
+# Pivot wider to have stats per condition as separate columns
+protein_meta_wide <- protein_meta %>%
+  pivot_wider(
+    names_from = condition,
+    values_from = c(mean_log2rfu, median_log2rfu, sd_log2rfu, se_log2rfu, iqr_25, iqr_75), 
+    values_fill = 0  # or NA/impute others later
+  )
+
+# Write final table for node features
+write.csv(protein_meta_wide, "../output/tarca/GNN/protein_metadata.csv", row.names = FALSE)
+```
+
+
+```{r}
+# Modify the data for the hypergraph
+hyp_data <- full_data %>%
+  select(target, log2rfu, accession, trimester) %>%
+  pivot_wider(names_from = target, values_from = log2rfu)
+
+write.csv(hyp_data, "../output/tarca/GNN/expression_wide.csv", row.names = FALSE)
+```
+
+```{r}
+# Assign samples to rownames
+hyp_data <- hyp_data %>%
+  column_to_rownames("accession")
+```
+
+```{r}
+# Run hypergraph
+runHypergraph <- function(sample, group, trimester) {
+  
+  sample_ids <- sample$accession
+  samples_X <- hyp_data[rownames(hyp_data) %in% sample$accession, ]
+  samples_X <- na.omit(samples_X)
+  
+  # Remove genes with SD = 0
+  sd_scores <- apply(samples_X, 2, sd)
+  samples_X_sd <- samples_X[, which(sd_scores > 0)]
+  
+  # Run correlation
+  prot_cor <- cor(samples_X_sd, use = "pairwise.complete.obs", method = "spearman")
+  
+  # Binerise correlation values using SD of correlation matrix
+  bin <- abs(prot_cor)
+  bin[which(bin > sd(prot_cor))] <- 1
+  bin[which(bin != 1)] <- 0 # hypergraph incidence matrix
+  incidence_matrix = as.matrix(bin)
+  
+  inc_long <- as.data.frame(as.table(incidence_matrix)) %>%
+  dplyr::rename(protein_id = Var1, hyperedge_id = Var2, membership = Freq) %>%
+  dplyr::filter(membership == 1) %>%
+  dplyr::select(hyperedge_id, protein_id)
+  
+  write.csv(inc_long, paste0('../output/tarca/GNN/hypergraph_incidence_', group, '_', trimester, '.csv'), row.names = FALSE)
+  return(inc_long)
+}
+
+e <- full_data %>%
+  group_by(group, trimester) %>%
+  nest() %>%
+  mutate(hypergraph = pmap(list(data, group, trimester), runHypergraph))
+
+e
+#e$data[[1]]
+e$hypergraph[[1]]
+```
+
+```{r}
+# Fix the missing data
+# gene-names missing for: CS084, F229A, CG073, GNT2C, PKB a/b/g, PAL4D, ES1, CK094, UPK3L, PP13G, ANR63
+library(biomaRt)
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+listAttributes(mart)[grep("uniprot", listAttributes(mart)$name), ]
+
+# Connect to Ensembl via biomaRt
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+# Identify rows with NA gene symbols
+na_indices <- which(is.na(full_hyp_res2$entrez_gene_symbol))
+uniprot_ids_to_lookup <- unique(full_hyp_res2$uni_prot[na_indices])
+
+# Query Ensembl: Map UniProt ID to gene symbol
+gene_mapping <- getBM(
+  attributes = c("uniprotswissprot", "external_gene_name"),
+  filters = "uniprotswissprot",
+  values = uniprot_ids_to_lookup,
+  mart = mart
+)
+
+# Fill in the missing gene symbols
+for (i in na_indices) {
+  matching_gene <- gene_mapping$external_gene_name[gene_mapping$uniprotswissprot == full_hyp_res2$uni_prot[i]]
+  if (length(matching_gene) > 0) {
+    full_hyp_res2$entrez_gene_symbol[i] <- matching_gene[1]
+  }
+}
+
+# View the updated dataframe
+full_hyp_res2 %>%
+  filter(protein == "PKB a/b/g") # GNT2C, PKB a/b/g, and ES1 still NA
+
+# Manually add the ones still missing
+# Manually fix missing gene symbols
+full_hyp_res2$entrez_gene_symbol[full_hyp_res2$uni_prot == "Q8NFS9"] <- "GCNT2"
+full_hyp_res2$entrez_gene_symbol[full_hyp_res2$protein == "PKB a/b/g"] <- "AKT1 AKT2 AKT3"
+full_hyp_res2$entrez_gene_symbol[full_hyp_res2$uni_prot == "P30042"] <- "GATD3"
+
+write_csv(full_hyp_res2, "../output/tarca/full_hypergraph_results.csv")
+```
+

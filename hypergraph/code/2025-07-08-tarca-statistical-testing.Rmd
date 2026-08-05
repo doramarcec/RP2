@@ -1,0 +1,1474 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+install.packages("ARTool")
+install.packages("emmeans")
+install.packages("dummies")
+devtools::install_github("js229/Vennerable")
+install.packages("ggvenn")
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(rstatix)
+library(ARTool)
+library(emmeans)
+library(glmnet)
+library(reprex)
+library(ggpubr)
+library(ggsci)
+library(scales)
+library(correlation)
+library(Vennerable)
+library(ggvenn)
+theme_set(
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 12, colour = "black"),
+    axis.title = element_text(size = 13),
+    title = element_text(size = 14),
+    legend.position = "top",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  )
+)
+```
+
+```{r}
+kmeans_clusters <- read_tsv("../data/tarca_et_al_2021/string/string_kmeans_clusters.tsv")
+kmeans_clusters
+
+cluster_desc <- read_tsv("../data/tarca_et_al_2021/string/string_kmeans_cluster_descriptions.tsv")
+cluster_desc
+
+second_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_second_trimester.csv")
+second_trimester
+
+third_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_third_trimester.csv")
+third_trimester
+```
+
+```{r}
+# Tidy the data
+kmeans_clusters <- kmeans_clusters %>%
+  clean_names()
+
+second_trimester$Trimester <- "Second"
+third_trimester$Trimester <- "Third"
+
+second_trimester <- second_trimester %>%
+  clean_names()
+third_trimester <- third_trimester %>%
+  clean_names()
+
+full_data <- full_join(second_trimester, third_trimester)
+full_data <- full_data %>%
+  clean_names()
+```
+
+```{r}
+third_trimester %>%
+  select(accession, group) %>%
+  unique() %>%
+  count(group)
+
+second_trimester %>%
+  filter(group == 'Control') %>%
+  arrange(desc(log2rfu))
+```
+
+```{r}
+# How many proteins and samples in each data subset?
+full_data %>%
+  count(target) %>% 
+  count(n) 
+# 1165 targets in total, each measured in 698 patient samples (566 controls, 124 sPTDs, 8 pPROMs)
+full_data %>%
+  filter(group == "PPROM") %>%
+  count(accession) # 566 controls, 124 sPTDs, 8 pPROMs
+
+second_trimester %>%
+  count(target) # 1165 proteins in 372 samples
+
+third_trimester %>%
+  count(target) # 1165 proteins in 326 samples
+
+# Quality control
+targets_ctr2 <- unique(second_trimester$target[second_trimester$group == 'Control'])
+targets_spd2 <- unique(second_trimester$target[second_trimester$group == 'sPTD'])
+
+# Find common values
+common_values <- intersect(targets_ctr2, targets_spd2)
+
+if (length(common_values) > 0) {
+  cat("The two groups share", length(common_values), "common values.")
+} else {
+  cat("The two groups do not share any common values.\n")
+}
+```
+
+```{r}
+# Identify matching columns
+kmeans_clusters %>%
+  count(protein_name) # 1112 proteins
+
+# Create lists to check for overlap -> use in stats testing based on clusters
+tarca_list <- as.list(full_data$target)
+cluster_list <- as.list(kmeans_clusters$protein_name)
+
+count <- tarca_list %in% cluster_list
+table(count)
+```
+
+```{r}
+# Join the datasets
+cluster_stats <- right_join(kmeans_clusters, full_data, by = c("protein_name" = "target"))
+cluster_stats %>%
+  count(protein_name) # 1,165 proteins
+
+# Select only relevant columns
+cluster_stats <- cluster_stats %>%
+  select(cluster_number, protein_name, log2rfu, group, trimester)
+```
+
+# Normality testing
+Log2RFU data follows a 'leptokurtic distribution' (more sharply peaked than normal dist)
+-> may indicate low variance or strong central tendency
+-> slightly left-skewed + bimodal: could reflect biological subgroups or measurement noise - investigate
+-> distributions are similar across trimesters and outcome groups
+```{r}
+# Quantitative normality testing: Kolmogorov-Smirnov (for datasets with > 50 samples)
+full_data %>%
+  group_by(group) %>%
+  summarise(
+    n = n(),
+    mean = mean(log2rfu),
+    sd = sd(log2rfu),
+    ks = list(ks.test(log2rfu, "pnorm", mean(log2rfu), sd(log2rfu)))
+  ) %>%
+  mutate(
+    D = sapply(ks, function(x) x$statistic),
+    p_value = sapply(ks, function(x) x$p.value)
+  )
+# p < 0.05: reject the null hypothesis -> not normally distributed
+```
+
+```{r}
+# Install required packages
+install.packages(c("fitdistrplus", "sn", "mixsmsn"))
+
+library(fitdistrplus)
+library(sn)        # for skewed distributions
+library(mixsmsn)   # for mixture skewed-normal/t
+
+# Example: suppose your data is in a vector called "x"
+x <- full_data$log2rfu
+# Fit skewed t-distribution
+fit_st <- selm(x ~ 1, family = "ST")  # from 'sn' package
+
+# Fit skewed Laplace
+# (no direct base function; use VGAM or custom MLE)
+
+# Fit mixture of skewed normals/t
+fit_mix <- smsn.mix(x, nu = 4, g = 2, family = "Skew.t")  # 2-component skewed-t mixture
+
+# Compare AIC values
+AIC(fit_st)   # skewed t
+fit_mix$aic   # mixture skewed-t
+```
+
+```{r}
+pdf_values <- dsgt(x, mu = 1, sigma = 1, lambda = -0.3, p = 3, q = 100, mean.cent = FALSE)
+
+# Create a data frame for plotting
+plot_data <- data.frame(x = x, density = pdf_values)
+
+# Create the plot
+ggplot(plot_data, aes(x = x, y = density)) +
+  geom_line(color = "blue", linewidth = 1) +
+  labs(title = "Generalized Skewed t-Distribution PDF",
+       x = "x",
+       y = "Density") +
+  theme_minimal() + 
+  ylim(0, 1) + xlim(-5, 5)
+```
+
+```{r}
+# Density curve
+dc <- cluster_stats %>%
+  ggplot() + aes(x = log2rfu, colour = group) + 
+  geom_density(key_glyph = "path") + facet_wrap(~trimester) + 
+  scale_colour_npg() + scale_fill_npg() + 
+  labs(x = "Sample signal (log2RFU)", y = "Density")
+
+# QQ plot 
+qqp <- cluster_stats %>%
+  ggplot() + aes(sample = log2rfu, colour = group) + 
+  geom_qq() + geom_qq_line() + facet_wrap(~trimester) +
+  scale_colour_npg() + scale_fill_npg() + 
+  ylab("Sample quantiles") + xlab("Theoretical quantiles")
+
+combined_plot <- ggarrange(dc, qqp, common.legend = TRUE, legend = "top")
+annotate_figure(combined_plot, top = text_grob("Sample Signal Distribution Across Trimesters", size = 14))
+
+ggsave("../output/tarca/visuals/density-and-qq.tiff", height = 4, width = 9)
+```
+```{r}
+full_data %>%
+  filter(target == "P-Selectin") %>% # P-Selectin
+  ggplot() + aes(x = ga_delivery, y = log2rfu, colour = trimester) +
+  geom_point() + facet_wrap(~group) +
+  scale_colour_npg() + scale_fill_npg()
+```
+
+
+# Equal variance testing
+Null hypothesis in Levene's test is that all groups have equal variances (homoscedasticity). 
+```{r}
+# Global variance test
+full_data %>%
+  levene_test(log2rfu~group*trimester, center = "median") # Brown-Forsythe test
+
+# Per-trimester variance test
+second_trimester %>%
+  levene_test(log2rfu ~ group, center = "median")
+third_trimester %>%
+  levene_test(log2rfu ~ group, center = "median")
+```
+p < 0.05 in all cases -> reject the null hypothesis; the assumption of equal variances is violated, and therefore, the data in both trimester subsets is heteroscedastic. 
+
+# Statistical evaluation based on clusters
+##Kruskal-Wallis test
+-> is there a significant difference in log2RFU between different pregnancy outcomes ('group') across the clusters in second and third trimester?
+```{r}
+doKruskalTest <- function(x) {
+  x %>%
+    kruskal_test(log2rfu~group) %>%
+  print(kruskalTest)
+}
+
+a <- cluster_stats %>%
+  group_by(cluster_number, trimester) %>%
+  nest()
+
+a$data[[1]]
+
+a <- cluster_stats %>%
+  group_by(cluster_number, trimester) %>%
+  nest() %>%
+  mutate(Kruskal = map(data, doKruskalTest))
+
+a$Kruskal[[1]]
+a$data[[1]]
+
+cluster_res_kruskal <- a %>%
+  unnest(cols = c("cluster_number", "trimester", "Kruskal")) %>%
+  select(-data)
+
+# Adjust p values
+cluster_res_kruskal$p_adj_bh <- p.adjust(cluster_res_kruskal$p, method = "BH") # Benjamini–Hochberg correction
+cluster_res_kruskal$p_adj_by <- p.adjust(cluster_res_kruskal$p, method = "BY") # Benjamini–Yekutieli correction
+
+cluster_res_kruskal %>%
+  filter(p < 0.05) # 17 significant overall 
+cluster_res_kruskal %>%
+  filter(p_adj_bh < 0.05) # 16 significant with BH correction
+cluster_res_kruskal %>%
+  filter(p_adj_by < 0.05) # 14 significant with BY correction
+
+# Reorder the columns
+cluster_res_kruskal <- cluster_res_kruskal %>%
+  select(-method, everything(), method) %>%
+  drop_na(cluster_number)
+
+write_csv(cluster_res_kruskal, "../output/tarca/statistics_kruskal_wallis_results_clusters.csv")
+
+# Next steps
+dunns <- a %>%
+  unnest(cols = c("cluster_number", "trimester", "data", "Kruskal"))
+dunns$p_adj_by <- p.adjust(dunns$p, method = "BY") # Benjamini–Yekutieli correction
+```
+The answer is **yes.**
+
+### Dunn's test
+Which pregnancy groups differ across clusters in second and third trimester?
+```{r}
+doDunnsTest <- function(x) {
+    x %>%
+    dunn_test(log2rfu~group) %>%
+  print(dunnsTest)
+  }
+
+b <- dunns %>%
+  group_by(cluster_number, trimester) %>%
+  dplyr::filter(p_adj_by < 0.05) %>%
+  nest()
+
+b$data[[1]]
+
+b <- dunns %>%
+  group_by(cluster_number, trimester) %>%
+  dplyr::filter(p_adj_by < 0.05) %>%
+  nest() %>%
+  mutate(Dunn = map(data, doDunnsTest))
+
+b$Dunn[[1]]
+
+cluster_res_dunn <- b %>%
+  unnest(cols = c("cluster_number", "trimester", "Dunn")) %>%
+  select(-data) %>%
+  drop_na(cluster_number) %>%
+  arrange(p.adj)
+
+write_csv(cluster_res_dunn, "../output/tarca/statistics_dunns_results_clusters.csv")
+```
+
+STRING cluster descriptions:
+1 - Transmembrane receptor protein tyrosine kinase signalling pathway (411 genes)
+2 - Positive regulation of immune system process (387 genes)
+*6 - Neurexins and neuroligins (7 genes = NRXN3, NRXN1, SPARCL1, LRRTM1, NXPH1, NLGN4X, LRRTM3)*
+- SPARCL1 much more expressed in sPTD in PCA clustering in second trimester - it is also the only protein out of these 7 in the PCA
+
+>Neurexins and neuroligins are synaptic cell-adhesion molecules that connect presynaptic and postsynaptic neurons at synapses, mediate signalling across the synapse, and shape the properties of neural networks by specifying synaptic functions. In humans, alterations in genes encoding neurexins or neuroligins have recently been implicated in autism and other cognitive diseases, linking synaptic cell adhesion to cognition and its disorders ([Sudhof, 2008](https://www.nature.com/articles/nature07456)).
+
+>Neurexins (NXs) and neuroligins (NLs) are transsynaptically interacting cell adhesion proteins that play a key role in the formation, maturation, activity-dependent validation, and maintenance of synapses. As complex alternative splicing processes in nerve cells generate a large number of NX and NLs variants, it has been proposed that a combinatorial interaction code generated by these variants may determine synapse identity and network connectivity during brain development. The functional importance of NXs and NLs is exemplified by the fact that mutations in NX and NL genes are associated with several neuropsychiatric disorders, most notably with autism ([Krueger et al., 2012](https://doi.org/10.1016/j.conb.2012.02.012)).
+
+*8 - TNFs bind their physiological receptors (3 genes = EDA, EDA2R, EDAR)*
+
+
+*10 - Protein K69-linked ufmylation (2 genes = UFC1, UFM1)*
+-> entirely novel: there is nothing in relation to preterm birth + Protein K69-linked ufmylation in the literature!
+> While physiological triggers and consequences of UFMylation are not entirely clear, its biological importance is epitomized by mutations in the UFMylation pathway in human pathophysiology including musculoskeletal and neurodevelopmental diseases ([Millrine et al., 2023](https://doi.org/10.1111/febs.16730)).
+
+-> related to retinopathy of prematurity
+> Cilia are evolutionarily conserved organelles characterized by a microtubule-based structure, known as the axoneme. The axoneme is surrounded by the ciliary membrane and originates from the basal body, a structure derived from the mother centriole. Cilia play a critical role in embryonic development, including organ morphogenesis and the establishment of the left-right asymmetry.
+...
+Mechanistic studies have revealed that ciliary abnormalities are often caused by abnormal expression or mislocalization of ciliary proteins, including those that constitute the structural components of cilia and those involved in maintaining ciliary homeostasis, such as ciliary assembly, disassembly, and length control.[4] These alterations in ciliary proteins are largely regulated by post-translational modifications (PTMs), which significantly enhance the complexity of the proteome and are crucial for maintaining tissue homeostasis.[5] Examples of PTMs involved in ciliary regulation include acetylation, glycylation, palmitoylation, and the recently identified ubiquitin-fold modifier 1 (UFM1) modification (UFMylation). These modifications play crucial roles in maintaining ciliary homeostasis and contribute to the pathogenesis of ciliopathies by modifying ciliary proteins.
+...
+Accumulating evidence has shown that dysfunction in these PTMs can lead to perturbations in tissue homeostasis, contributing to human diseases.[9] For example, [...] the interplay between the phosphorylation and ubiquitination of histone deacetylase 6 (HDAC6), a key regulator of ciliary disassembly, has been linked to retinopathy of prematurity through its role in maintaining the integrity of the photoreceptor cilium ([Ran and Zhou, 2025](https://doi.org/10.1002/advs.202416562)).
+
+## Aligned-Rank Transform (ART) ANOVA
+Calculate the proportion of tied values before conducting ART ANOVA as it can be sensitive to high ties (above 10-15%).
+```{r}
+n_ties <- sum(duplicated(full_data$log2rfu))
+prop_ties <- n_ties / length(full_data$log2rfu) # No duplicated log2rfu values => no heavy ties
+```
+
+```{r}
+# Ensure relevant character columns are stored as factors
+cluster_stats$group <- factor(cluster_stats$group)
+cluster_stats$trimester <- factor(cluster_stats$trimester)
+cluster_stats$cluster_number <- factor(cluster_stats$cluster_number)
+```
+
+```{r}
+# Fit the aligned-rank transform model
+art_model <- art(log2rfu ~ group * trimester * cluster_number, data = cluster_stats)
+summary(art_model)
+
+# Run ANOVA on the model
+anova_res <- anova(art_model)
+print(anova_res)
+```
+1 factor(group)                                           2 174440 11.5417889 9.7229e-06 ***
+-> strong evidence to reject the null hypothesis of no difference between groups
+-> indicates median log2rfu differs between groups
+
+2 factor(trimester)                                       1 174440  0.0017346    0.96678    
+-> no evidence to reject the null hypothesis of no difference between trimesters
+
+3 factor(cluster_number)                                  9 174440 64.3353861 < 2.22e-16 ***
+-> strong evidence to reject the null hypothesis of no difference between clusters
+-> indicates median log2rfu differs between clusters
+
+4 factor(group):factor(trimester)                         2 174440  1.5746356    0.20709    
+-> interaction of the two factors is insignificant, suggesting no evidence that group differences depend on trimeste
+-> the effect of log2rfu does not changes depending on the trimester or sample-taking
+
+5 factor(group):factor(cluster_number)                   18 174440 11.5696782 < 2.22e-16 ***
+-> significant interaction of the two, suggesting strong evidence that group differences depend on clusters
+
+6 factor(trimester):factor(cluster_number)                9 174440  0.6395194    0.76410    
+-> interaction of the two factors is insignificant, suggesting no evidence that trimester differences depend on clusters
+
+7 factor(group):factor(trimester):factor(cluster_number) 18 174440 11.7349438 < 2.22e-16 ***
+-> interaction of the three is significant, suggesting evidence that the interaction between group and trimester changes across clusters
+
+```{r}
+posthoc <- art.con(art_model, "group", adjust = "bonferroni") # both bonferroni and by are available
+summary(posthoc)
+
+posthoc <- art.con(art_model, "cluster_number", adjust = "bonferroni")
+summary(posthoc)
+
+posthoc <- art.con(art_model, "group:cluster_number", adjust = "bonferroni")
+summary(posthoc)
+
+posthoc <- art.con(art_model, "group:trimester:cluster_number", adjust = "bonferroni")
+summary(posthoc)
+
+posthoc_df <- summary(posthoc)
+posthoc_df <- as.data.frame(posthoc_df)
+```
+
+```{r}
+# Build per-term linear model
+lm_condition <- artlm(art_model, term = "group", response = "art")
+
+# Summary for inference on the term
+summary(lm_condition)
+```
+
+## Generalised Linear Modelling
+```{r}
+model <- glm(group ~ log2rfu + target, family = binomial(link = "logit"), data = full_data)
+summary(model)
+```
+
+# Statistical evaluation based on proteins
+## Kruskal-Wallis test
+-> is there a significant difference in log2RFU between different pregnancy outcomes ('group') across proteins?
+```{r}
+doKruskalTest <- function(x) {
+  x %>%
+    kruskal_test(log2rfu~group) %>%
+  print(kruskalTest)
+}
+
+c <- cluster_stats %>%
+  group_by(protein_name, trimester) %>%
+  nest()
+
+c$data[[1]]
+
+c <- cluster_stats %>%
+  group_by(protein_name, trimester) %>%
+  nest() %>%
+  mutate(Kruskal = map(data, doKruskalTest))
+
+c$Kruskal[[1]]
+c$data[[1]]
+c
+
+# Explore the results
+kruskal_res_proteins <- c %>%
+  unnest("Kruskal") %>%
+  select(-data)
+
+kruskal_res_proteins$p_adj_bh <- p.adjust(kruskal_res_proteins$p, method = "BH") # Benjamini–Hochberg correction
+kruskal_res_proteins$p_adj_by <- p.adjust(kruskal_res_proteins$p, method = "BY") # Benjamini–Yekutieli correction
+
+kruskal_res_proteins %>%
+  filter(trimester == "Third", p < 0.05) %>%
+  count(protein_name) # 1086 proteins in second trimester + 1101 proteins in third trimester (out of 1165)
+
+kruskal_res_proteins %>%
+  filter(trimester == "Third", p_adj_bh < 0.05) %>%
+  count(protein_name) # 1085 proteins in second trimester + 1096 proteins in third trimester (out of 1165)
+
+kruskal_res_proteins %>%
+  filter(trimester == "Third", p_adj_by < 0.05) %>%
+  count(protein_name) # 1039 proteins in second trimester + 1048 proteins in third trimester (out of 1165)
+
+# Reorder the columns
+kruskal_res_proteins <- kruskal_res_proteins %>%
+  select(-method, everything(), method) %>%
+  arrange(p_adj_by)
+
+kruskal_res_proteins %>%
+  filter(trimester == "Third", p_adj_by < 0.05) %>%
+  select(protein_name) %>%
+  count(protein_name) %>%
+  distinct(protein_name)
+
+#write_csv(kruskal_res_proteins, "../output/tarca/statistics_kruskal_wallis_results_proteins.csv")
+
+# Next steps
+dunns2 <- c %>%
+  unnest(cols = c("protein_name", "trimester", "data", "Kruskal"))
+dunns2$p_adj_by <- p.adjust(dunns2$p, method = "BY") # Benjamini–Yekutieli correction
+```
+**yes!**
+
+*Post-hoc: Dunn's test*
+-> which pregnancy outcomes (groups) have statistically significant difference in log2RFU protein expression?
+```{r}
+doDunnsTest <- function(x) {
+    x %>%
+    dunn_test(log2rfu~group) %>%
+  print(dunnsTest)
+  }
+
+d <- dunns2 %>%
+  group_by(protein_name, trimester) %>%
+  dplyr::filter(p_adj_by < 0.05) %>%
+  nest()
+
+d$data[[1]]
+
+d <- dunns2 %>%
+  group_by(protein_name, trimester) %>%
+  dplyr::filter(p_adj_by < 0.05) %>%
+  nest() %>%
+  mutate(Dunn = map(data, doDunnsTest))
+
+d$Dunn[[1]]
+
+dunn_res_proteins <- d %>%
+  unnest(cols = c("protein_name", "trimester", "Dunn")) %>%
+  select(-data) %>%
+  arrange(p.adj)
+
+dunn_res_proteins %>%
+  filter(trimester == "Third", p.adj < 0.05) %>% 
+  arrange(p.adj) %>%
+  count(protein_name) %>%
+  unique() # 1018 proteins in second trimester + 1036 proteins in third semester
+?dunn_test
+#write_csv(dunn_res_proteins, "../output/tarca/statistics_dunns_results_proteins.csv")
+```
+
+## Aligned-Rank Transform ANOVA
+```{r}
+# Ensure relevant character columns are stored as factors
+full_data$group <- factor(full_data$group)
+full_data$trimester <- factor(full_data$trimester)
+full_data$target <- factor(full_data$target)
+
+second_trimester$group <- factor(second_trimester$group)
+second_trimester$trimester <- factor(second_trimester$trimester)
+second_trimester$target <- factor(second_trimester$target)
+
+third_trimester$group <- factor(third_trimester$group)
+third_trimester$trimester <- factor(third_trimester$trimester)
+third_trimester$target <- factor(third_trimester$target)
+```
+
+```{r}
+# Define ART ANOVA function
+doARTAnova <- function(x) {
+  if(length(unique(x$group)) < 2) {
+    return(NA) # not enough groups to compare
+  } else {
+    art_model <- art(log2rfu ~ group, data = x)
+    anova_res <- anova(art_model)
+    anova_res_df <- as.data.frame(anova_res)
+    return(anova_res_df)
+  }
+}
+
+# Nest by target and trimester
+aa <- full_data %>%
+  group_by(target, trimester) %>%
+  nest()
+
+# Example to inspect first nested data frame
+aa$data[[1]]
+
+# Apply ART ANOVA to each nested dataframe
+aa <- aa %>%
+  mutate(ANOVA = map(data, doARTAnova))
+
+# Inspect output
+aa
+aa$ANOVA[[1]]
+
+anova_res_proteins <- aa %>%
+  unnest("ANOVA") %>%
+  select(-data) %>%
+  clean_names()
+
+# Adjust the p values
+anova_res_proteins$p_adj_by <- p.adjust(anova_res_proteins$pr_f, method = "BY") # Benjamini–Yekutieli correction
+
+anova_res_proteins %>%
+  filter(p_adj_by < 0.05) %>%
+  select(target) %>%
+  distinct() # 2,187 significant targets vs 2,088 with BY correction
+
+anova_res_proteins %>%
+  filter(p_adj_by < 0.05, trimester == "Third") %>%
+  select(target) %>%
+  count(target) %>%
+  distinct(target)
+
+#write_csv(anova_res_proteins, "../output/tarca/statistics_ARTANOVA_results_proteins.csv")
+
+# Next steps
+posthoc <- aa %>%
+  unnest(cols = c("target", "trimester", "data", "ANOVA")) %>%
+  clean_names()
+posthoc$p_adj_by <- p.adjust(posthoc$pr_f, method = "BY") # Benjamini–Yekutieli correction
+#posthoc <- posthoc %>%
+#  filter(p_adj_by < 0.05)
+```
+
+```{r}
+# Run a post-hoc
+doARTAnovaPostHoc <- function(x) {
+  if(length(unique(x$group)) < 2) {
+    return(NA)
+  } else {
+    art_model <- art(log2rfu ~ group, data = x)
+    ph <- art.con(art_model, "group", adjust = "bonferroni")
+    as.tibble(summary(ph))
+  }
+}
+
+# Nest by target and trimester
+aaph <- posthoc %>%
+  group_by(target, trimester) %>%
+  nest()
+
+# Example to inspect first nested data frame
+aaph$data[[1]]
+
+# Apply the posthoc to each nested dataframe
+aaph <- aaph %>%
+  mutate(AnovaPH = map(data, doARTAnovaPostHoc))
+
+# Inspect output
+aaph
+aaph$AnovaPH[[1]]
+
+anovaph_res_proteins <- aaph %>%
+  unnest(cols = c("target", "trimester", "AnovaPH")) %>%
+  select(-data) %>%
+  clean_names()
+
+anovaph_res_proteins %>%
+  filter(trimester == "Third", p_value < 0.05) %>%
+  select(target) %>%
+  count(target) %>%
+  distinct(target)
+
+#anovaph_res_proteins <- anovaph_res_proteins %>%
+#  filter(p_value < 0.05) %>%
+#  arrange(p_value)
+?art.con
+#write_csv(anovaph_res_proteins, "../output/tarca/statistics_ARTANOVA_posthoc_results_proteins.csv")
+```
+Output interpretation:
+
+A positive *estimate* means the first group in the contrast (e.g., "preterm") has a higher aligned rank (hence, potentially higher transformed protein measurement) than the second ("term"). A negative value means the opposite.
+-> shows the direction and size of the difference 
+
+An example based on the first row: 
+>On the aligned-rank scale, term pregnancies (controls) have, on average, an aligned rank 165.00 units lower than preterm pregnancies for Angiopoietin-1.
+
+The *t.ratio* expresses how many standard errors the observed difference is away from zero. A larger absolute value means a more extreme difference (relative to noise), thus stronger evidence against the null hypothesis of no difference.
+-> quantifies how strong the above difference is compared to its variability, forming the basis for statistical inference
+>The observed group difference is (-)17.22 times the standard error — suggesting a robust effect.
+
+-> The p value (4.037486e-47) indicates that this difference is statistically significant. 
+```{r}
+# Identify the 'double-validated' proteins i.e. significant in both KW and ANOVA
+anovaph_res_proteins %>%
+  filter(trimester == "Second", p_value < 0.05) %>%
+  count(target) %>%
+  unique() # 1024 in second trimester + 1040 in third trimester
+
+dunn_res_proteins %>%
+  filter(trimester == "Third", p.adj < 0.05) %>% 
+  arrange(p.adj) %>%
+  count(protein_name) %>%
+  unique() # 1018 proteins in second trimester + 1036 proteins in third semester
+
+# Compile target lists
+anova_targets2 <- anovaph_res_proteins %>%
+  filter(trimester == "Second") %>% 
+  pull(target)
+anova_targets3 <- anovaph_res_proteins %>%
+  filter(trimester == "Third") %>% 
+  pull(target)
+
+dunn_target2 <- dunn_res_proteins %>%
+  filter(trimester == "Second", p.adj < 0.05) %>%
+  pull(protein_name)
+dunn_target3 <- dunn_res_proteins %>%
+  filter(trimester == "Third", p.adj < 0.05) %>%
+  pull(protein_name)
+
+# Calculate common targets for each trimester
+common_targets2 <- intersect(anova_targets2, dunn_target2)
+common_targets3 <- intersect(anova_targets3, dunn_target3)
+
+# Add a conditional filter: match targets per trimester only to relevant intersection
+anovaph_res_proteins_filtered <- anovaph_res_proteins %>%
+  filter(
+    (trimester == "Second" & target %in% common_targets2) |
+    (trimester == "Third"  & target %in% common_targets3)
+  )
+
+dunn_res_proteins_filtered <- dunn_res_proteins %>%
+  filter(
+    (trimester == "Second" & protein_name %in% common_targets2) |
+    (trimester == "Third"  & protein_name %in% common_targets3)
+  )
+
+anovaph_res_proteins_filtered
+dunn_res_proteins_filtered
+
+#write_csv(anovaph_res_proteins_filtered, "../output/tarca/statistics_filtered_DEGs_ANOVA.csv")
+#write_csv(dunn_res_proteins_filtered, "../output/tarca/statistics_filtered_DEGs_Dunns.csv")
+```
+
+Check the proteomic data from the beginning again to see if all 
+- if there is less than X counts in Y number of cells - then remove it
+
+```{r}
+library(ggplot2)
+library(EnhancedVolcano)
+
+# Sample data frame resembling results from ART ANOVA posthoc
+set.seed(123)
+results <- data.frame(
+  feature = paste0("Feature", 1:100),
+  estimate = rnorm(100, 0, 2),       # effect size (analogous to log2 fold change)
+  t_ratio = rnorm(100, 0, 4),        # test statistic
+  p_adj = runif(100, 0, 0.1)         # adjusted p-values
+)
+
+# Add -log10 adjusted p-value for ggplot
+anova_volcano <- anovaph_res_proteins %>%
+  filter(contrast == "Control - sPTD")
+anova_volcano$neg_log10_padj <- -log10(anova_volcano$p_value)
+
+### 1. Volcano plot using ggplot2 ###
+ggplot(anova_volcano, aes(x = estimate, y = neg_log10_padj)) +
+  geom_point(aes(color = p_value < 0.05 & abs(estimate) > 2), alpha = 0.7, size = 2) +
+  scale_color_manual(values = c("FALSE" = "grey", "TRUE" = "red")) +
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "blue") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "blue") +
+  labs(
+    title = "Volcano Plot (ggplot2) - Using Estimate and Adjusted p-value",
+    x = "Effect Size (Estimate)",
+    y = "-Log10 Adjusted p-value",
+    color = "Significant"
+  ) +
+  theme_minimal()
+
+### 2. Volcano plot using EnhancedVolcano ###
+EnhancedVolcano(anova_volcano,
+  lab = anova_volcano$target,
+  x = "estimate",        # x-axis: effect size
+  y = "p_value",           # y-axis: adjusted p-value
+  pCutoff = 0.05,
+  FCcutoff = 2,          # effect size cutoff
+  title = "Volcano Plot (EnhancedVolcano)",
+  subtitle = "ART ANOVA Posthoc Results",
+  pointSize = 2.5,
+  labSize = 4,
+  col = c("grey30", "forestgreen", "royalblue", "red2"),
+  legendPosition = "right"
+)
+```
+
+## Generalised Linear Modelling
+```{r}
+full_data_wider <- full_data %>%
+  pivot_wider(names_from = target, values_from = log2rfu) %>%
+  select(-c(accession, geo_accession, ga_delivery))
+
+second_trimester_wide <- second_trimester %>%
+  pivot_wider(names_from = target, values_from = log2rfu) %>%
+  select(-c(accession, geo_accession, ga_delivery))
+
+third_trimester_wide <- third_trimester %>%
+  pivot_wider(names_from = target, values_from = log2rfu) %>%
+  select(-c(accession, geo_accession, ga_delivery))
+
+# Check the baseline class
+levels(full_data$group) # Control is baseline
+```
+
+*full_data_wider predictors*
+$Control
+[1] *"JAK2"* *"PCSK7"* *"Soggy-1"* "ULBP-2" "a2-Macroglobulin"
+$PPROM
+[1] *"IgE"*        
+$sPTD
+[1] "FGFR-3" "GPC5" "PTHrP" "Prothrombin"
+
+*second trimester predictors*
+$Control
+[1] "H6ST1" "Hemoglobin" "IGFBP-1" "IGFBP-6" "Integrin a1b1" *"PCSK7"* *"Soggy-1"*      
+
+$PPROM
+[1] *"IgE"*        
+
+$sPTD
+[1] "HIPK3" *"JAK2"* "Livin B" "NOTC2" "PIM1" "Protein C" *"Prothrombin"*
+
+*third trimester predictors*
+$Control
+[1] "Integrin a1b1" *"JAK2"* "Peroxiredoxin-6" *"Soggy-1"* "gpIIbIIIa"      
+
+$PPROM
+[1] *"IgE"*        
+
+$sPTD
+[1] "Apo A-I" "C1r" *"FGFR-3"* "IGFBP-3" "Livin B" *"PTHrP"* "TSH"
+
+>increased levels of c-reactive protein and complement C5 in the preterm birth group ([Beernink et al., 2023](https://www.sciencedirect.com/science/article/pii/S0143400423001467)).
+
+```{r}
+# Full data
+#x_proteins <- as.matrix(second_trimester_wide[, -c(1, 2)])
+#x_trimesters <- model.matrix(~ trimester - 1, data = full_data_wider)
+#x <- cbind(x_proteins, x_trimesters)
+#y <- second_trimester_wide$group
+
+# Second trimester
+#x <- as.matrix(second_trimester_wide[, -c(1, 2)])
+#y <- second_trimester_wide$group
+
+# Third trimester
+x <- as.matrix(third_trimester_wide[, -c(1, 2)])
+y <- third_trimester_wide$group
+
+fit <- glmnet(x, y, family = "multinomial")
+plot(fit, xvar = "lambda", label = TRUE, type.coef = "2norm")
+
+cv_fit <- cv.glmnet(x, y, family = "multinomial")
+plot(cvfit)
+best_lambda <- cv_fit$lambda.min
+print(best_lambda)
+
+final_model <- glmnet(x, y, family = "multinomial", lambda = best_lambda)
+coef_list <- coef(final_model)
+
+selected_vars <- lapply(coef_list, function(class_coef) {
+  rownames(class_coef)[which(class_coef != 0)] # finds predictors with non-zero coefficients
+})
+
+print(selected_vars)
+```
+Non-zero coefficients: those selected by the LASSO penalty as relevant for distinguishing that class
+- variables not listed (zero coefficient) are excluded by LASSO as non-informative (or redundant) for that class
+- highlights potential biomarkers or features important for distinguishing that class
+
+```{r}
+coef_list[["Control"]] # log-odds ratios relative to the baseline class
+
+get_selected_coefs <- function(coef_mat, class_name) {
+  df <- as.data.frame(as.matrix(coef_mat))
+  df$variable <- rownames(df)
+  colnames(df)[1] <- "coefficient"
+  
+  # Filter non-zero coef excluding intercept
+  df_sel <- df %>%
+    filter(coefficient != 0 & variable != "(Intercept)") %>%
+    mutate(class = class_name) %>%
+    select(class, variable, coefficient)
+  
+  return(df_sel)
+}
+
+# Apply per class and combine
+selected_coefs_df <- bind_rows(
+  lapply(names(coef_list), function(cl) get_selected_coefs(coef_list[[cl]], cl))
+)
+
+selected_coefs_df <- selected_coefs_df %>%
+  mutate(odds_ratio = exp(coefficient))
+
+selected_coefs_df1 <- selected_coefs_df %>%
+  dplyr::mutate(piodio = case_when(               # percentage increase or decrease in odds
+    odds_ratio > 1 ~ (odds_ratio - 1) * 100,
+    odds_ratio < 1 ~ (1 - odds_ratio) * 100
+  )) %>%
+  dplyr::mutate(ipp = (odds_ratio / 1 + odds_ratio) * 100) # implied percentage probability
+print(selected_coefs_df1)
+```
+L1 regularization may help!
+
+check the balance between l1 and l2 regularization
+
+Odds-ratio interpretations:
+OR ≈ 1: No change in odds with increase in predictor
+OR > 1: Odds increase; predictor positively associated
+OR < 1 (e.g., 0.5): Odds decrease; predictor negatively associated
+OR ≈ 0 (e.g., 2e-63): Odds drastically decrease; near zero odds -> the predictor strongly reduces the odds of that class versus term
+
+Concretely, if the coefficient for protein X under category sPTD is 0.5, it means that for every one-unit increase in protein X’s value, the log-odds of a sample being sPTD instead of term increase by 0.5.These log-odds can be converted to odds ratios by taking the exponential: exp(0.5) ≈ 1.65, meaning the odds of sPTD versus term are multiplied by about 1.65 for each unit increase in protein X.
+
+-> they describe relative risk as log-odds changes, not absolute probabilities.
+
+*PPROM	IgE	13.055350	4.675915e+05 (= 467,591.5)*
+-> every one-unit increase in IgE log2RFUs, increases the odds of the pregnancy outcome being pPROM instead of term by a factor of 467,591.5
+-> piodio: 46,759,050% increase in odds (???) that can't be right
+-> ipp: 93,518,300% increase in implied probability? 
+
+*sPTD	FGFR-3	-111.100550	5.618808e-49 (= 49 zeros in front of 5618808)* {no association with preterm birth}
+-> every one-unit increase in FGFR-3 log2RFU, decreases the odds of the pregnancy outcome being sPTD (instead of term) by a factor of 5.618808e-49 (nearly zero and a near 100% decrease in odds)
+-> piodio: 100% decrease in odds? yes, nearly
+-> essentially this means that higher values of FGFR-3 in plasma dramatically reduce the odds of sPTD 
+
+*sPTD	GPC5	-12.966021	2.338454e-06*
+-> every one-unit increase in FGFR-3 log2RFU, decreases the odds of the pregnancy outcome being sPTD (instead of term) by a factor of 2.338454e-06 (nearly zero and a near 100% decrease in odds)
+-> piodio: 99.99977% decrease in odds? these results are bold
+-> as above but not as extreme, essentially
+
+*sPTD PTHrP	-23.486765	6.307069e-11*
+-> every one-unit increase in PTHrP log2RFU, decreases the odds of the pregnancy outcome being sPTD (instead of term) by a factor of 6.307069e-11 (nearly zero and a near 100% decrease in odds)
+-> piodio: 100% decrease in odds again? bruh
+-> let's see the pcaaaaaaa
+
+*sPTD	Prothrombin	63.957288	5.974443e+27* {picked up in KEGG results in https://www.tandfonline.com/doi/full/10.1080/14767058.2023.2232074#d1e439}
+-> every one-unit increase in Prothrombin log2RFUs, increases the odds of the pregnancy outcome being sPTD instead of term by a factor of 5.974443e+27
+-> piodio: 5 × 10^29 % increase in odds? and we have a winner
+ 
+
+# Statistical evaluation based on pathways
+```{r}
+kegg <- read_tsv("../data/tarca_et_al_2021/string/enrichment.KEGG.tsv")
+go <- read_tsv("../data/tarca_et_al_2021/string/enrichment.GO.BioProcess.tsv")
+```
+
+```{r}
+# Tidy the data
+go <- go %>%
+  clean_names() %>%
+  select(-matching_proteins_in_your_network_i_ds) %>%
+  filter(false_discovery_rate < 0.001)
+
+go1 <- go %>%
+  separate_rows(matching_proteins_in_your_network_labels, sep = ",") %>%
+  rename(protein_name = matching_proteins_in_your_network_labels)
+  
+kegg <- kegg %>%
+  clean_names() %>%
+  select(-matching_proteins_in_your_network_i_ds) %>%
+  filter(false_discovery_rate < 0.001)
+
+kegg1 <- kegg %>%
+  separate_rows(matching_proteins_in_your_network_labels, sep = ",") %>%
+  rename(protein_name = matching_proteins_in_your_network_labels)
+```
+
+```{r}
+# Join the datasets
+go_joined <- right_join(go1, full_data, by = c("protein_name" = "target"))
+go_joined %>%
+  count(protein_name) # 1,165 proteins
+
+kegg_joined <- right_join(kegg1, full_data, by = c("protein_name" = "target"))
+kegg_joined %>%
+  count(protein_name) # 1,165 proteins
+```
+
+```{r}
+doKruskalTest <- function(x) {
+  x %>%
+    kruskal_test(log2rfu~group) %>%
+  print(kruskalTest)
+}
+
+e <- go_joined %>%
+  group_by(term_description, trimester) %>%
+  nest()
+
+e$data[[1]]
+
+e <- go_joined %>%
+  group_by(term_description, trimester) %>%
+  nest() %>%
+  mutate(Kruskal = map(data, doKruskalTest))
+
+e
+e$Kruskal[[1]]
+e$data[[1]]
+
+go_res_kruskal <- e %>%
+  unnest(cols = c("term_description", "trimester", "Kruskal")) %>%
+  select(-data)
+
+# Adjust p values
+go_res_kruskal$p_adj_bh <- p.adjust(go_res_kruskal$p, method = "BH") # Benjamini–Hochberg correction
+go_res_kruskal$p_adj_by <- p.adjust(go_res_kruskal$p, method = "BY") # Benjamini–Yekutieli correction
+
+go_res_kruskal %>%
+  filter(p < 0.05) # 1963 significant overall 
+go_res_kruskal %>%
+  filter(p_adj_bh < 0.05) # 1907 significant with BH correction
+go_res_kruskal %>%
+  filter(p_adj_by < 0.05) # 1662 significant with BY correction
+
+# Reorder the columns
+go_res_kruskal <- go_res_kruskal %>%
+  select(-method, everything(), method) %>%
+  arrange(p_adj_by)
+
+write_csv(go_res_kruskal, "../output/tarca/statistics_kruskal_wallis_results_GO.csv")
+
+# Next steps
+dunns3 <- e %>%
+  unnest(cols = c("term_description", "trimester", "data", "Kruskal"))
+dunns3$p_adj_by <- p.adjust(dunns3$p, method = "BY") # Benjamini–Yekutieli correction
+```
+
+```{r}
+doDunnsTest <- function(x) {
+    x %>%
+    dunn_test(log2rfu~group) %>%
+  print(dunnsTest)
+  }
+
+f <- dunns3 %>%
+  group_by(term_description, trimester) %>%
+  dplyr::filter(p_adj_by < 0.05) %>%
+  nest()
+
+f$data[[1]]
+
+f <- dunns3 %>%
+  group_by(term_description, trimester) %>%
+  dplyr::filter(p_adj_by < 0.05) %>%
+  nest() %>%
+  mutate(Dunn = map(data, doDunnsTest))
+
+f
+f$Dunn[[1]]
+
+go_res_dunn <- f %>%
+  unnest(cols = c("term_description", "trimester", "Dunn")) %>%
+  select(-data) %>%
+  #drop_na(term_description) %>%
+  arrange(p.adj)
+
+write_csv(go_res_dunn, "../output/tarca/statistics_dunns_results_GO.csv")
+```
+
+
+# Hypergraph analysis
+```{r}
+hyp_data <- full_data %>%
+  select(target, log2rfu, accession, trimester)
+
+hyp_data <- hyp_data %>%
+  pivot_wider(names_from = target, values_from = log2rfu)
+```
+
+```{r}
+# Assign samples to rownames
+hyp_data <- hyp_data %>%
+  column_to_rownames("accession")
+
+# Run hypergraph
+runHypergraph <- function(sample, group, trimester) {
+  
+  sample_ids <- sample$accession
+  samples_X <- hyp_data[rownames(hyp_data) %in% sample$accession, ]
+  samples_X <- na.omit(samples_X)
+  
+  # Remove genes with SD = 0
+  sd_scores <- apply(samples_X, 2, sd)
+  samples_X_sd <- samples_X[, which(sd_scores > 0)]
+  
+  # Run correlation
+  gene_cor <- cor(samples_X_sd, use = "pairwise.complete.obs", method = "spearman")
+  
+  # Binerise correlation values using SD of correlation matrix
+  bin <- abs(gene_cor)
+  bin[which(bin > sd(gene_cor))] <- 1
+  bin[which(bin != 1)] <- 0 # hypergraph incidence matrix
+  incidence_matrix = as.matrix(bin)
+
+  # Generate hypergraph adjacency matrix by matrix multiplication
+  hyp <- bin %*% t(bin) 
+  adjacency_matrix = as.matrix(hyp)
+  
+  # Ranking
+  #rowsum_res <- rowSums(hyp)
+  #hist(rowsum_res) # non-parametric
+  #row_sums_df <- as.data.frame(rowsum_res)
+  #colnames(row_sums_df)[1] <- "rowsum"
+  #row_sums_df$rank <- rank(row_sums_df$rowsum, ties.method = "average")
+  #row_sums_df$norm_rank <- (row_sums_df$rank)/nrow(row_sums_df) # Divide by the number of rows
+  
+  # Add the outcome label
+  #row_sums_df$group <- group
+  #row_sums_df$trimester <- trimester
+  
+  # Sort ranks
+  #row_sums_df <- row_sums_df[order(row_sums_df$rank, decreasing = TRUE), ]
+  
+  # Change rownames to column
+  #row_sums_df$gene <- rownames(row_sums_df)
+
+  #return(row_sums_df)
+  return(adjacency_matrix)
+}
+
+e <- full_data %>%
+  group_by(group, trimester) %>%
+  nest() %>%
+  mutate(hypergraph = pmap(list(data, group, trimester), runHypergraph))
+
+e
+#e$data[[1]]
+e$hypergraph[[1]]
+
+hyp_res <- e %>%
+  mutate(hypergraph = map(hypergraph, ~ rownames_to_column(.x, var = "protein") %>% select(-c(group, trimester)))) %>%
+  unnest(hypergraph) %>%
+  select(-data)
+
+hyp_res <- hyp_res %>%
+  select(-gene)
+
+# Import the full data for annotation
+full_data2 <- read_csv("../data/tarca_et_al_2021/merged_normalised_datasets_for_modelling.csv")
+full_data2 <- full_data2 %>%
+  clean_names() %>%
+  dplyr::select(target, group, entrez_gene_symbol, uni_prot) %>%
+  distinct()
+
+full_hyp_res <- right_join(hyp_res, full_data2, by = c("protein" = "target", "group" = "group"))
+full_hyp_res2 <- full_hyp_res %>%
+  dplyr::select(trimester, group, entrez_gene_symbol, uni_prot, protein, rowsum, rank, norm_rank) %>%
+  unique()
+```
+
+```{r}
+# Fix the missing data
+# gene-names missing for: CS084, F229A, CG073, GNT2C, PKB a/b/g, PAL4D, ES1, CK094, UPK3L, PP13G, ANR63
+library(biomaRt)
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+listAttributes(mart)[grep("uniprot", listAttributes(mart)$name), ]
+
+# Connect to Ensembl via biomaRt
+mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+
+# Identify rows with NA gene symbols
+na_indices <- which(is.na(full_hyp_res2$entrez_gene_symbol))
+uniprot_ids_to_lookup <- unique(full_hyp_res2$uni_prot[na_indices])
+
+# Query Ensembl: Map UniProt ID to gene symbol
+gene_mapping <- getBM(
+  attributes = c("uniprotswissprot", "external_gene_name"),
+  filters = "uniprotswissprot",
+  values = uniprot_ids_to_lookup,
+  mart = mart
+)
+
+# Fill in the missing gene symbols
+for (i in na_indices) {
+  matching_gene <- gene_mapping$external_gene_name[gene_mapping$uniprotswissprot == full_hyp_res2$uni_prot[i]]
+  if (length(matching_gene) > 0) {
+    full_hyp_res2$entrez_gene_symbol[i] <- matching_gene[1]
+  }
+}
+
+# View the updated dataframe
+full_hyp_res2 %>%
+  filter(protein == "PKB a/b/g") # GNT2C, PKB a/b/g, and ES1 still NA
+
+# Manually add the ones still missing
+# Manually fix missing gene symbols
+full_hyp_res2$entrez_gene_symbol[full_hyp_res2$uni_prot == "Q8NFS9"] <- "GCNT2"
+full_hyp_res2$entrez_gene_symbol[full_hyp_res2$protein == "PKB a/b/g"] <- "AKT1 AKT2 AKT3"
+full_hyp_res2$entrez_gene_symbol[full_hyp_res2$uni_prot == "P30042"] <- "GATD3"
+
+#write_csv(full_hyp_res2, "../output/tarca/full_hypergraph_results.csv")
+```
+
+
+```{r}
+# Heatmap visualisations
+adj_matrix_ctrl <- e$hypergraph[[1]]
+euc_dist <- dist(adj_matrix_ctrl)
+hc <- hclust(euc_dist, method = "complete")
+
+png("../output/control_heatmap.png", width = 1650, height = 1650, res = 300)
+heatmap(adj_matrix_ctrl, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+dev.off()
+
+adj_matrix_sptd <- e$hypergraph[[2]]
+euc_dist <- dist(adj_matrix_ctrl)
+hc <- hclust(euc_dist, method = "complete")
+
+png("../output/sPTD_heatmap.png", width = 1600, height = 1600, res = 300)
+heatmap(adj_matrix_sptd, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+dev.off()
+
+adj_matrix_pprom <- e$hypergraph[[3]]
+euc_dist <- dist(adj_matrix_ctrl)
+hc <- hclust(euc_dist, method = "complete")
+
+png("../output/pprom_heatmap.png", width = 1600, height = 1600, res = 300)
+heatmap(adj_matrix_pprom, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+dev.off()
+```
+
+```{r}
+library(pheatmap)
+pheatmap(adj_matrix_ctrl,
+         clustering_distance_rows = euc_dist,
+         clustering_distance_cols = euc_dist,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/control_pheatmap.png")
+
+pheatmap(adj_matrix_sptd,
+         clustering_distance_rows = euc_dist,
+         clustering_distance_cols = euc_dist,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/sPTD_pheatmap.png")
+
+pheatmap(adj_matrix_pprom,
+         clustering_distance_rows = euc_dist,
+         clustering_distance_cols = euc_dist,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/pPROM_pheatmap.png")
+```
+
+The proteome is completely screwed in pprom
+- It changes a little bit in sPTD but in PPROM it gets all over the place!
+- completely dysfunctional
+-> however, is that because of the pprom per se, or due to an underlying infection (i.e. bacteremia)?
+-> the exclusion criteria is not presented in the original publication so it's unclear if the women with pprom had any underlying conditions
+
+```{r}
+adj_matrix_ctrl2 <- e$hypergraph[[1]]
+euc_dist1 <- dist(adj_matrix_ctrl2)
+hc1 <- hclust(euc_dist1, method = "complete")
+
+adj_matrix_sptd2 <- e$hypergraph[[2]]
+euc_dist2 <- dist(adj_matrix_sptd2)
+hc2 <- hclust(euc_dist2, method = "complete")
+
+adj_matrix_pprom2 <- e$hypergraph[[3]]
+euc_dist3 <- dist(adj_matrix_pprom2)
+hc3 <- hclust(euc_dist3, method = "complete")
+
+adj_matrix_ctrl3 <- e$hypergraph[[4]]
+euc_dist4 <- dist(adj_matrix_ctrl3)
+hc4 <- hclust(euc_dist4, method = "complete")
+
+adj_matrix_sptd3 <- e$hypergraph[[5]]
+euc_dist5 <- dist(adj_matrix_sptd3)
+hc5 <- hclust(euc_dist5, method = "complete")
+
+adj_matrix_pprom3 <- e$hypergraph[[6]]
+euc_dist6 <- dist(adj_matrix_pprom3)
+hc6 <- hclust(euc_dist6, method = "complete")
+
+library(pheatmap)
+phc2 <- pheatmap(adj_matrix_ctrl2,
+         clustering_distance_rows = euc_dist1,
+         clustering_distance_cols = euc_dist1,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/pheatmap_ctrl2.png")
+phc3 <- pheatmap(adj_matrix_ctrl3,
+         clustering_distance_rows = euc_dist4,
+         clustering_distance_cols = euc_dist4,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/pheatmap_ctrl3.png")
+phsptd2 <- pheatmap(adj_matrix_sptd2,
+         clustering_distance_rows = euc_dist2,
+         clustering_distance_cols = euc_dist2,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/pheatmap_sPTD2.png")
+phsptd3 <- pheatmap(adj_matrix_sptd3,
+         clustering_distance_rows = euc_dist5,
+         clustering_distance_cols = euc_dist5,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/pheatmap_sPTD3.png")
+pheatmap(adj_matrix_pprom2,
+         clustering_distance_rows = euc_dist3,
+         clustering_distance_cols = euc_dist3,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/pheatmap_pPROM2.png")
+pheatmap(adj_matrix_pprom3,
+         clustering_distance_rows = euc_dist6,
+         clustering_distance_cols = euc_dist6,
+         clustering_method = "complete",
+         show_rownames = FALSE,
+         show_colnames = FALSE,
+         color = colorRampPalette(c("white", "blue"))(256),
+         filename = "../output/pheatmap_pPROM3.png")
+```
+
+*Central clusters*
+```{r}
+#phc2, phc3, phsptd2, phsptd3
+# Control: Second trimester
+central_cluster_ctrl2 <- cutree(phc2$tree_row, k = 2)
+central_cluster_ctrl2 <- as.data.frame(central_cluster_ctrl2) %>%
+  rownames_to_column(var = "target") 
+# Which is the smaller cluster? 1
+central_cluster_ctrl2 <- central_cluster_ctrl2 %>%
+  #count(central_cluster_ctrl2)
+  filter(central_cluster_ctrl2 == 1)
+
+# Control: Third trimester
+central_cluster_ctrl3 <- cutree(phc3$tree_row, k = 2)
+central_cluster_ctrl3 <- as.data.frame(central_cluster_ctrl3) %>%
+  rownames_to_column(var = "target")
+# Which is the smaller cluster? 1
+central_cluster_ctrl3 <- central_cluster_ctrl3 %>%
+  #count(central_cluster_ctrl3)
+  filter(central_cluster_ctrl3 == 1)
+
+# sPTD: Second trimester
+central_cluster_sptd2 <- cutree(phsptd2$tree_row, k = 4)
+central_cluster_sptd2 <- as.data.frame(central_cluster_sptd2) %>%
+  rownames_to_column(var = "target") 
+# Which is the smallest cluster? 1
+central_cluster_sptd2 <- central_cluster_sptd2 %>%
+  #count(central_cluster_sptd2) %>%
+  filter(central_cluster_sptd2 == 1)
+
+# sPTD: Third trimester
+central_cluster_sptd3 <- cutree(phsptd3$tree_row, k = 2)
+central_cluster_sptd3 <- as.data.frame(central_cluster_sptd3) %>%
+  rownames_to_column(var = "target") 
+# Which is the smaller cluster? 1
+central_cluster_sptd3 <- central_cluster_sptd3 %>%
+  #count(central_cluster_sptd3) %>%
+  filter(central_cluster_sptd3 == 1)
+```
+
+```{r}
+# Which proteins are overlapping in the second trimester?
+second_trimester_overlap <- intersect(central_cluster_ctrl2$target, central_cluster_sptd2$target)
+second_trimester_overlap
+
+# Create a Venn diagram
+n_cc_sptd2 <- length(central_cluster_sptd2$target)
+n_cc_ctrl2 <- length(central_cluster_ctrl2$target)
+n_overlap2 <- length(second_trimester_overlap)
+
+venn_data <- Venn(SetNames = c("Control", "sPTD"),
+                  Weight = c(
+                    "10" = n_cc_ctrl2,
+                    "01" = n_cc_sptd2,
+                    "11" = n_overlap2
+                  ))
+# Modify colors for sets and overlaps:
+venn_drawing <- compute.Venn(venn_data, doWeights = FALSE)
+gp <- VennThemes(venn_drawing)
+gp[["Set"]][["Control"]]$fill <- "#E64B3599"   
+gp[["Set"]][["sPTD"]]$fill <- "#4DBBD599"      
+gp[["Face"]][["11"]]$fill <- "#8491B499"       
+gp[["Set"]][["Control"]]$col <- "#E64B35FF"
+gp[["Set"]][["sPTD"]]$col <- "#4DBBD5FF"
+grid.newpage()
+png("venn_second_trimester.png", width = 600, height = 600)
+plot(venn_drawing, gpList = gp)
+dev.off()
+
+# Which proteins are sPTD specific?
+cc_sptd2_specific <- central_cluster_sptd2 %>%
+  filter(!target %in% second_trimester_overlap)
+cc_sptd2_specific
+
+# Which proteins are term specific?
+cc_ctrl2_specific <- central_cluster_ctrl2 %>%
+  filter(!target %in% second_trimester_overlap)
+cc_ctrl2_specific
+```
+
+```{r}
+cc_sptd2_specific$trimester = "Second"
+cc_sptd2_specific$central_cluster = "sPTD-specific"
+
+cc_ctrl2_specific$trimester = "Second"
+cc_ctrl2_specific$central_cluster = "term-specific"
+
+central_clusters2 <- full_join(cc_sptd2_specific, cc_ctrl2_specific) %>%
+  select(-c(central_cluster_sptd2, central_cluster_ctrl2)) # number of rows should be 404
+```
+
+
+```{r}
+# Which proteins are overlapping in the second trimester?
+third_trimester_overlap <- intersect(central_cluster_ctrl3$target, central_cluster_sptd3$target)
+third_trimester_overlap
+
+# Create a Venn diagram
+n_cc_sptd3 <- length(central_cluster_sptd3$target)
+n_cc_ctrl3 <- length(central_cluster_ctrl3$target)
+n_overlap3 <- length(third_trimester_overlap)
+
+# Which proteins are sPTD specific?
+cc_sptd3_specific <- central_cluster_sptd3 %>%
+  filter(!target %in% third_trimester_overlap)
+cc_sptd3_specific
+
+# Which proteins are term specific?
+cc_ctrl3_specific <- central_cluster_ctrl3 %>%
+  filter(!target %in% third_trimester_overlap)
+cc_ctrl3_specific
+
+516 - 255
+```
+```{r}
+cc_sptd3_specific$trimester = "Third"
+cc_sptd3_specific$central_cluster = "sPTD-specific"
+
+cc_ctrl3_specific$trimester = "Third"
+cc_ctrl3_specific$central_cluster = "term-specific"
+
+central_clusters3 <- full_join(cc_sptd3_specific, cc_ctrl3_specific) %>%
+  select(-c(central_cluster_ctrl3, central_cluster_sptd3))
+216 + 261 # number of rows should be 477
+
+central_clusters <- full_join(central_clusters2, central_clusters3) # should have 881 rows
+write_csv(central_clusters, "../output/tarca/central_clusters.csv")
+```
+
+
+# Biomarker interactions
+```{r}
+string_interactions <- read_tsv("../data/tarca_et_al_2021/string/string_interactions.tsv")
+string_interactions
+```
+
+```{r}
+potential_biomarkers <- c("AGER", "APOB", "PTHLH", "YES1", "LAG3", "A2M", "LY86", "CDON", "SERPINA5", "CSNK2A1", "APP", "PLAUR", "PDE11A", "PCSK7", "EIF5", "SORCS2", "ITIH4", "IMPDH2", "JAK2")
+markers <- full_hyp_res %>%
+  filter(entrez_gene_symbol %in% potential_biomarkers)
+
+string_interactions %>%
+  clean_names() %>%
+  filter(number_node1 %in% potential_biomarkers & node2 %in% potential_biomarkers) %>%
+  select(-c(node1_string_id, node2_string_id)) %>%
+  arrange(desc(combined_score))
+```
+
+

@@ -1,0 +1,75 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+```
+
+```{r}
+# Import the data
+second_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_second_trimester.csv")
+second_trimester
+
+third_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_third_trimester.csv")
+third_trimester
+```
+
+```{r}
+# Tidy the data
+second_trimester$Trimester <- "Second"
+third_trimester$Trimester <- "Third"
+
+second_trimester <- second_trimester %>%
+  clean_names()
+third_trimester <- third_trimester %>%
+  clean_names()
+```
+
+```{r}
+full_data <- full_join(second_trimester, third_trimester)
+full_data <- full_data %>%
+  clean_names()
+```
+
+```{r}
+# How many patients is there in total and how many belong to each pregnancy outcome group?
+full_data %>%
+  select(accession, group) %>%
+  unique() %>%
+  count(group)
+```
+There are 698 patients in total, with 566 controls, 124 sPTDs, 8 pPROMs, measured across second and third trimesters. 
+
+```{r}
+# How many patients that had their samples taken in the second trimester delivered at term, preterm and with pprom?
+second_trimester %>%
+  select(accession, group) %>%
+  unique() %>%
+  count(group)
+
+# How many patients that had their samples taken in the third trimester delivered at term, preterm and with pprom?
+third_trimester %>%
+  select(accession, group) %>%
+  unique() %>%
+  count(group)
+```
+
+```{r}
+# How many proteins and samples in each data subset?
+second_trimester %>%
+  group_by(group) %>%
+  count(target) %>% 
+  count(n) # 1165 proteins in all 372 samples across all groups
+
+third_trimester %>%
+  group_by(group) %>%
+  count(target) %>% 
+  count(n) # 1165 proteins in all 326 samples across all groups
+```
+
+All 1165 protein targets were measured in all samples from both second and third trimesters.

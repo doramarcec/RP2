@@ -1,0 +1,348 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+# Install packages
+#install.packages("tidyverse")
+#BiocManager::install("dendextend")
+#BiocManager::install("gplots")
+#BiocManager::install("plyr")
+#BiocManager::install("BioQC")
+install.packages("duckplyr")
+```
+
+```{r}
+# Load packages
+library(tidyverse)
+library(dendextend)
+library(gplots)
+library(plyr)
+library(BioQC)
+library(ggpubr)
+library(ggsci)
+library(duckplyr)
+```
+
+```{r}
+# Set the working directory
+setwd("../Desktop/Masters/RP-2/hypergraph")
+getwd()
+```
+Filtered Ivan's data to gestational age = day 6 (lines 39-40).
+```{r}
+# Import normalized and filtered data
+## Ivan's data
+#exp_data <- read_csv("../data/trophectoderm_X.csv")
+#obs_data <- read_csv("../data/trophectoderm_obs.csv")
+#var_data <- read_csv("../data/trophectoderm_var.csv")
+
+#obs_data <- obs_data %>%
+#  filter(age == "6")
+
+## Hu et al., 2025 data
+exp_data <- read_csv("../data/hu_et_al_2025/hu_amnion_X.csv")
+colnames(exp_data)[colnames(exp_data) == "...1"] <- "CellID"
+obs_data <- read_csv("../data/hu_et_al_2025/hu_amnion_obs.csv")
+colnames(obs_data)[colnames(obs_data) == "...1"] <- "CellID"
+var_data <- read_csv("../data/hu_et_al_2025/hu_amnion_var.csv")
+colnames(var_data)[colnames(var_data) == "...1"] <- "CellID"
+```
+
+```{r}
+# Filter out genes with low variance
+exp_data
+
+# Calculate variances
+variances <- sapply(exp_data, var)
+print(variances)
+
+# Check object class
+class(variances)
+typeof(variances)
+
+# Calculate summary stats
+min(variances, na.rm = TRUE)
+max(variances, na.rm = TRUE)
+summary(variances, na.rm = TRUE)
+
+hist(variances)
+
+# Variance cut-off = mean (0.037520)
+variance_cutoff <- exp_data[, which(variances > 0.037520)]
+
+# Return the CellID column
+variance_cutoff$CellID <- exp_data$CellID
+variance_cutoff <- variance_cutoff %>%
+  select(CellID, everything())
+```
+
+```{r}
+# Convert cell type column from character to factor
+obs_data$cell_type <- as.factor(obs_data$cell_type)
+```
+
+*Hypergraph notes*
+
+>Finally, if use has the value "pairwise.complete.obs" then the correlation or covariance between each pair of variables is computed using all complete pairs of observations on those variables. This can result in covariance or correlation matrices which are not positive semi-definite, as well as NA entries if there are no complete pairs for that pair of variables. For cov and var, "pairwise.complete.obs" only works with the "pearson" method (cor() R Documentation).
+-> all genes x all genes => gene correlation matrix
+-> using Pearson
+
+```{r}
+# Assign samples to rownames
+#exp_data <- exp_data %>%
+#  column_to_rownames("CellID")
+
+exp_data <- variance_cutoff %>%
+  column_to_rownames("CellID")
+
+# Run hypergraph
+runHypergraph <- function(sample, cell_subtype) {
+  
+  cell_ids <- sample$CellID
+  samples_X <- exp_data[rownames(exp_data) %in% sample$CellID, ]
+  samples_X <- na.omit(samples_X)
+  
+  # Remove genes with SD = 0
+  sd_scores <- apply(samples_X, 2, sd)
+  samples_X_sd <- samples_X[, which(sd_scores > 0)]
+  
+  # Run correlation
+  gene_cor <- cor(samples_X_sd, use = "pairwise.complete.obs", method = "spearman")
+  
+  # Binerise correlation values using SD of correlation matrix
+  bin <- abs(gene_cor)
+  bin[which(bin > sd(gene_cor))] <- 1
+  bin[which(bin != 1)] <- 0 # hypergraph incidence matrix
+  incidence_matrix = as.matrix(bin)
+
+  # Generate hypergraph adjacency matrix by matrix multiplication
+  hyp <- bin %*% t(bin) 
+  adjacency_matrix = as.matrix(hyp)
+  
+  # Ranking
+  rowsum_res <- rowSums(hyp)
+  #hist(rowsum_res) # non-parametric
+  row_sums_df <- as.data.frame(rowsum_res)
+  colnames(row_sums_df)[1] <- "rowsum"
+  row_sums_df$rank <- rank(row_sums_df$rowsum, ties.method = "average")
+  row_sums_df$norm_rank <- (row_sums_df$rank)/nrow(row_sums_df) # Divide by the number of rows
+  
+  # Add the leiden cluster label
+  row_sums_df$cell_subtype <- cell_subtype
+  
+  # Sort ranks
+  row_sums_df <- row_sums_df[order(row_sums_df$rank, decreasing = TRUE), ]
+  
+  # Change rownames to column
+  row_sums_df$gene <- rownames(row_sums_df)
+
+  return(row_sums_df)
+  #return(adjacency_matrix)
+}
+
+a <- obs_data %>%
+  group_by(cell_subtype) %>%
+  nest() %>%
+  mutate(hypergraph = map2(data, cell_subtype, runHypergraph))
+
+a
+a$data[[1]]
+a$hypergraph[[1]]
+```
+
+*Number of genes each TE cluster has [6 clusters] -> Ivan's data*
+leiden
+<dbl>
+data
+<list>
+hypergraph
+<list>
+1	<tibble>	<data.frame [17,890 × 5]>		
+15	<tibble>	<data.frame [17,297 × 5]>		
+9	<tibble>	<data.frame [16,198 × 5]>		
+11	<tibble>	<data.frame [17,751 × 5]>		
+0	<tibble>	<data.frame [15,959 × 5]>		
+6	<tibble>	<data.frame [13,273 × 5]>	
+
+```{r}
+# Save the full hypergraph results
+b <- a %>%
+  mutate(hypergraph = map(hypergraph, ~ rownames_to_column(.x, var = "genes") %>% select(-leiden))) %>%
+  unnest(data) %>%
+  unnest(hypergraph) %>%
+  select(leiden, gene, rowsum, norm_rank) %>%
+  unique()
+b
+
+write_csv(b, "../output/full_hypergraph_results_spearman.csv", col_names = TRUE)
+```
+
+```{r}
+library(glue)
+
+visualiseHypergraph <- function(leiden) {
+  
+  adj_matrix_l0 <- a$hypergraph[[leiden]]
+  euc_dist <- dist(adj_matrix_l0)
+  hc <- hclust(euc_dist, method = "complete")
+  
+  png(glue("../output/hypergraph_analysis/plots/{leiden}_heatmap.png"), width = 1600, height = 1600, res = 300)
+  heatmap(adj_matrix_l0, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+  dev.off()
+  
+}
+
+b <- a %>%
+  filter(leiden != 0)
+
+plots <- b %>%
+  dplyr::select(-data) %>%
+  mutate(heatmaps = map(leiden, visualiseHypergraph))
+```
+
+```{r}
+b %>%
+  ggplot() + aes(x = rowsum) + geom_density(fill = "lightblue", alpha = 0.5) + theme_minimal() + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) + 
+  labs(title = "Density Plot of DEG Row Sums", x = "Row Sum", y = "Density")
+```
+
+```{r}
+ggdensity(b, 
+          x = "norm_rank", 
+          title = "Hypernetwork Normalised Rank Distribution",
+          ylab = "Density",
+          xlab = "Normalised Rank") + 
+  scale_colour_npg() + scale_fill_npg() +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+```{r}
+# Save the filtered hypergraph results
+c <- b %>%
+  filter(norm_rank > 0.8)
+
+write_csv(c, "../output/filtered_hypergraph_results_spearman.csv", col_names = TRUE)
+
+# 5 clusters now! -> 0, 1, 9, 11, 15; 6 was dropped
+c %>%
+  select(leiden) %>%
+  unique()
+```
+
+```{r}
+# Save and export hypergraph incidence and adjacency matrices
+incidence <- a %>%
+  transmute(leiden, incidence = map(hypergraph, "incidence_matrix")) %>%
+  unnest(incidence)
+
+adjacency <- a %>%
+  transmute(leiden, adjacency = map(hypergraph, "adjacency_matrix")) %>%
+  unnest(adjacency)
+
+write_csv(incidence, "../output/hypergraph_analysis/hypergraph_incidence_matrix_spearman.csv", col_names = TRUE)
+write_csv(adjacency, "../output/hypergraph_analysis/hypergraph_adjacency_matrix_spearman.csv", col_names = TRUE)
+```
+
+```{r}
+walk2(
+  .x = a$leiden,
+  .y = a$hypergraph,
+  .f = function(cluster_id, cluster_data) {
+    write.csv(cluster_data$incidence_matrix,
+              paste0("../output/hypergraph_analysis/spearman_incidence_matrix_cluster_", cluster_id, ".csv"),
+              row.names = TRUE)
+  }
+)
+
+# run this
+walk2(
+  .x = a$leiden,
+  .y = a$hypergraph,
+  .f = function(cluster_id, cluster_data) {
+    write.csv(cluster_data$adjacency_matrix,
+              paste0("../output/spearman_hypergraph_analysis/adjacency_matrix_cluster_", cluster_id, ".csv"),
+              row.names = TRUE)
+  }
+)
+```
+
+*Heatmap visualisation*
+- leiden cluster 4
+
+Following LOEUF mapping, the leiden cluster 4 is the only cluster in which two genes have been mapped to significant LOEUF scores with canonical transcripts. 
+
+```{r}
+a
+```
+
+```{r}
+adj_matrix_l0 <- a$hypergraph[[1]]
+euc_dist <- dist(adj_matrix_l0)
+hc <- hclust(euc_dist, method = "complete")
+
+png("../output/TE_leiden_1_heatmap.png", width = 1600, height = 1600, res = 300)
+heatmap(adj_matrix_l0, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+dev.off()
+
+adj_matrix_l0 <- a$hypergraph[[2]]
+euc_dist <- dist(adj_matrix_l0)
+hc <- hclust(euc_dist, method = "complete")
+
+png("../output/TE_leiden_15_heatmap.png", width = 1600, height = 1600, res = 300)
+heatmap(adj_matrix_l0, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+dev.off()
+
+adj_matrix_l0 <- a$hypergraph[[3]]
+euc_dist <- dist(adj_matrix_l0)
+hc <- hclust(euc_dist, method = "complete")
+
+png("../output/TE_leiden_9_heatmap.png", width = 1600, height = 1600, res = 300)
+heatmap(adj_matrix_l0, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+dev.off()
+
+adj_matrix_l0 <- a$hypergraph[[4]]
+euc_dist <- dist(adj_matrix_l0)
+hc <- hclust(euc_dist, method = "complete")
+
+png("../output/TE_leiden_11_heatmap.png", width = 1600, height = 1600, res = 300)
+heatmap(adj_matrix_l0, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+dev.off()
+
+adj_matrix_l0 <- a$hypergraph[[5]]
+euc_dist <- dist(adj_matrix_l0)
+hc <- hclust(euc_dist, method = "complete")
+
+png("../output/TE_leiden_0_heatmap.png", width = 1600, height = 1600, res = 300)
+heatmap(adj_matrix_l0, Rowv = as.dendrogram(hc), Colv = as.dendrogram(hc),
+        symm = TRUE, scale = "none", col = heat.colors(256))
+dev.off()
+```
+
+```{r}
+str(adj_matrix_l0)
+```
+
+
+```{r}
+library(pheatmap)
+pheatmap(adj_matrix_l0,
+         clustering_distance_rows = euc_dist,
+         clustering_distance_cols = euc_dist,
+         clustering_method = "complete",
+         show_rownames = TRUE,
+         show_colnames = TRUE,
+         color = colorRampPalette(c("white", "blue"))(256))
+```
+
+

@@ -1,0 +1,331 @@
+---
+title: "Visualisation"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(rstatix)
+library(ARTool)
+library(emmeans)
+library(glmnet)
+library(reprex)
+library(ggpubr)
+library(ggsci)
+library(scales)
+library(correlation)
+library(Vennerable)
+library(ggvenn)
+theme_set(
+  theme_minimal() +
+  theme(
+    axis.text = element_text(size = 12, colour = "black"),
+    axis.title = element_text(size = 13),
+    title = element_text(size = 14),
+    legend.position = "top",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_blank()
+  )
+)
+```
+
+```{r}
+# Set working directory
+getwd()
+setwd("C:/Users/doram/Desktop/Masters/RP-2/hypergraph/code")
+```
+
+
+```{r}
+kmeans_clusters <- read_tsv("../data/tarca_et_al_2021/string/string_kmeans_clusters.tsv")
+kmeans_clusters
+
+cluster_desc <- read_tsv("../data/tarca_et_al_2021/string/string_kmeans_cluster_descriptions.tsv")
+cluster_desc
+
+second_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_second_trimester.csv")
+second_trimester
+
+third_trimester <- read_csv("../data/tarca_et_al_2021/norm_log2t_batch_corrected_integrated_dataset_third_trimester.csv")
+third_trimester
+
+pca_W <- read_csv("../data/tarca_et_al_2021/PCA_W2.csv")
+pca_W <- pca_W %>%
+  column_to_rownames(var = "...1")
+pca_scores <- read_csv("../data/tarca_et_al_2021/PCA_scores2.csv")
+
+pca_W3 <- read_csv("../data/tarca_et_al_2021/PCA_W3.csv")
+pca_W3 <- pca_W3 %>%
+  column_to_rownames(var = "...1")
+pca_scores3 <- read_csv("../data/tarca_et_al_2021/PCA_scores3.csv")
+
+central_clusters <- read_csv("../output/tarca/central_clusters.csv")
+```
+
+```{r}
+# Tidy the data
+kmeans_clusters <- kmeans_clusters %>%
+  clean_names()
+
+second_trimester$Trimester <- "Second"
+third_trimester$Trimester <- "Third"
+
+second_trimester <- second_trimester %>%
+  clean_names()
+third_trimester <- third_trimester %>%
+  clean_names()
+
+full_data <- full_join(second_trimester, third_trimester)
+full_data <- full_data %>%
+  clean_names()
+```
+
+# Visualisation
+Log2RFU data follows a 'leptokurtic distribution' (more sharply peaked than normal dist)
+-> may indicate low variance or strong central tendency
+-> slightly left-skewed + bimodal: could reflect biological subgroups or measurement noise - investigate
+-> distributions are similar across trimesters and outcome groups
+```{r}
+# Density curve
+dc <- cluster_stats %>%
+  ggplot() + aes(x = log2rfu, colour = group) + 
+  geom_density(key_glyph = "path") + facet_wrap(~trimester) + 
+  scale_colour_npg() + scale_fill_npg() + 
+  labs(x = "Sample signal (log2RFU)", y = "Density")
+
+# QQ plot 
+qqp <- cluster_stats %>%
+  ggplot() + aes(sample = log2rfu, colour = group) + 
+  geom_qq() + geom_qq_line() + facet_wrap(~trimester, scales = "free_x") +
+  scale_colour_npg() + scale_fill_npg() + 
+  theme(axis.text.x = element_text(hjust = 0.5), panel.spacing = unit(1, "lines")) + 
+  ylab("Sample quantiles") + xlab("Theoretical quantiles")
+
+gg1 <- ggarrange(dc, qqp, common.legend = FALSE, legend = "top", align = "hv")
+gg1
+
+ggsave("../output/tarca/visuals/figure1.1.tiff", height = 5, width = 11)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+df <- data.frame(
+  Feature = rownames(pca_W),
+  LV1 = pca_W[,1]
+)
+
+top_pos <- df %>% top_n(25, LV1)
+top_neg <- df %>% top_n(-25, LV1)
+
+df_top <- rbind(top_neg, top_pos)
+df_top <- df_top %>% arrange(LV1)
+df_top$Color <- ifelse(df_top$LV1 > 0, "#E64B35FF", "#4DBBD5FF")
+
+l2 <- ggplot(df_top, aes(x = reorder(Feature, LV1), y = LV1, fill = Color)) +
+  geom_bar(stat="identity", color = df_top$Color, alpha = 0.7, width = 0.8) +
+  coord_flip() +
+  scale_fill_identity() + scale_y_continuous(expand = c(0.001, 0.001)) +
+  labs(x="", y="LV1 Loadings") + 
+    theme(
+    axis.ticks.y = element_line(),                     
+    axis.ticks.length.y = unit(1.5, "mm"),               
+    plot.margin = margin(r=10, l=10, t=10, b=10)       
+  )
+
+# Replicate for third trimester
+df3 <- data.frame(
+  Feature = rownames(pca_W3),
+  LV1 = pca_W3[,1]
+)
+
+# Select top 20 positive and negative
+top_pos3 <- df3 %>% top_n(25, LV1)
+top_neg3 <- df3 %>% top_n(-25, LV1)
+
+df_top3 <- rbind(top_neg3, top_pos3)
+
+# Sort for plotting
+df_top3 <- df_top3 %>% arrange(LV1)
+df_top3$Color <- ifelse(df_top3$LV1 > 0, "#E64B35FF", "#4DBBD5FF")
+
+# Plot
+l3 <- ggplot(df_top3, aes(x = reorder(Feature, LV1), y = LV1, fill = Color)) +
+  geom_bar(stat="identity", color = df_top3$Color, alpha = 0.7, width = 0.8) +
+  coord_flip() + scale_fill_identity() + 
+  scale_y_continuous(expand = c(0.001, 0.001)) + 
+  scale_x_discrete(position = "top") + 
+  labs(x="", y="LV1 Loadings") + 
+  theme(
+    axis.ticks.y = element_line(),                     
+    axis.ticks.length.y = unit(1.5, "mm"),               
+    plot.margin = margin(r=10, l=10, t=10, b=10)       
+  )
+
+gg_arranged2 <- ggarrange(l2, l3, align = "h")
+
+# PCA plots
+st <- pca_scores %>%
+  ggplot() + aes(x = PC1, y = PC2, fill = GEO_accession, colour = GEO_accession, shape = Group) + 
+  geom_point(size = 1.75, alpha = 0.6) + scale_shape_manual(values = c(21, 22, 24)) + scale_colour_npg() + scale_fill_npg() + 
+  labs(x = "PC1: 17.26% Variance", y = "PC2: 12.07% Variance") 
+
+tt <- pca_scores3 %>%
+  ggplot() + aes(x = PC1, y = PC2, fill = GEO_accession, colour = GEO_accession, shape = Group) + 
+  geom_point(size = 1.75, alpha = 0.6) + scale_shape_manual(values = c(21, 22, 24)) + scale_colour_npg() + scale_fill_npg() +
+  labs(x = "PC1: 27.68% Variance", y = "PC2: 7.46% Variance")
+
+pca_scores %>%
+  compare_means(PC1 ~ Group, data = ., method = "wilcox.test", p.adjust.method = "bonferroni")
+my_comparisons <- list(c("Control", "PPROM"), c("sPTD", "PPROM"), c("Control", "sPTD"))
+
+st2 <- pca_scores %>%
+  ggplot() + aes(x = Group, y = PC1, colour = GEO_accession) + geom_boxplot() + scale_colour_npg() +
+  stat_compare_means(comparisons = my_comparisons, 
+                     method = "wilcox.test", 
+                     ref.group = "Control", 
+                     label = "p.signif", 
+                     p.adjust.method = "bonferroni") + ylab("PC1 Scores")
+tt2 <- pca_scores3 %>%
+  ggplot() + aes(x = Group, y = PC1, colour = GEO_accession) + geom_boxplot() + scale_colour_npg() +
+  stat_compare_means(comparisons = my_comparisons, 
+                     method = "wilcox.test", 
+                     ref.group = "Control", 
+                     label = "p.signif", 
+                     p.adjust.method = "bonferroni") + ylab("PC1 Scores")
+
+gg2 <- ggarrange(st, tt, st2, tt2,
+                 ncol = 2, nrow = 2,
+                 common.legend = TRUE, 
+                 legend = "top",
+                 align = "hv")
+
+ggarrange(gg_arranged2, gg2, ncol = 2, nrow = 1, widths = c(2, 1), align = "hv")
+ggsave("../output/tarca/visuals/Figure21111.tiff", height = 10, width = 20)
+```
+
+```{r}
+pcaw <- pca_W %>%
+  rownames_to_column(var = "target") %>%
+  select(target, PC1)
+st2 <- left_join(second_trimester, pcaw)
+st2
+
+st2 %>%
+  filter(target %in% df_top$Feature) %>%
+  unique() %>%
+  ggplot() + aes(x = PC1, y = ga_delivery) + geom_point()
+```
+# Pathway visualisations
+```{r}
+# Sort out the central clusters for Functional Analysis
+ctrl2 <- central_cluster_hyp %>%
+  filter(trimester == "Second", group == "Control")
+ctrl3 <- central_cluster_hyp %>%
+  filter(trimester == "Third", group == "Control")
+sptd2 <- central_cluster_hyp %>%
+  filter(trimester == "Second", group == "sPTD")
+sptd3 <- central_cluster_hyp %>%
+  filter(trimester == "Third", group == "sPTD")
+
+idx_sig <- grch38$symbol %in% sptd3$entrez_gene_symbol
+ids_sig <- grch38[idx_sig, ]
+non_duplicates2 <- which(duplicated(ids_sig$symbol) == FALSE)
+ids_sig <- ids_sig[non_duplicates2, ]
+sig_res_ids <- inner_join(sptd3, ids_sig, by=c("entrez_gene_symbol"="symbol"))
+sig_res_ids <- sig_res_ids %>%
+  distinct(entrez_gene_symbol)
+
+# Create a background dataset for hypergeometric testing using all genes tested for significance in the results
+all_genes <- as.character(hyp_res$entrez_gene_symbol)
+
+# Significant results
+sig_genes <- as.character(sig_res_ids$entrez_gene_symbol)
+```
+
+```{r}
+# Biological functions
+ego <- enrichGO(gene = sig_genes,
+                #universe = all_genes, 
+                keyType = "SYMBOL",
+                OrgDb = org.Hs.eg.db,
+                ont = "BP",
+                pAdjustMethod = "BH",
+                qvalueCutoff = 0.01,
+                readable = TRUE)
+
+#BP <- data.frame(ego) %>%
+#  dplyr::filter(p.adjust < 0.01) %>%
+#  arrange(desc(Count))
+#BP$Trimester <- "Second"
+#BP$Group <- "Control"
+
+# BP2 <- data.frame(ego) %>%
+#   dplyr::filter(p.adjust < 0.01) %>%
+#   arrange(desc(Count))
+# BP2$Trimester <- "Second"
+# BP2$Group <- "sPTD"
+# 
+# BP_second_trimester <- full_join(BP, BP2)
+# BP_second_trimester <- BP_second_trimester %>%
+#   group_by(Group) %>%
+#   arrange(desc(Count))
+# 
+# BP_second_trimester %>%
+#   group_by(Description) %>%
+#   wilcox.test(Group, FoldEnrichment, alternative = "two.sided", conf.int = TRUE, conf.level = 0.95)
+# 
+# write_csv(BP_second_trimester, "../output/tarca/biological_processes_central_clusters2.csv", col_names = TRUE)
+
+# BP3 <- data.frame(ego) %>%
+#   dplyr::filter(p.adjust < 0.01) %>%
+#   arrange(desc(Count))
+# BP3$Trimester <- "Third"
+# BP3$Group <- "Control"
+
+BP4 <- data.frame(ego) %>%
+  dplyr::filter(p.adjust < 0.01) %>%
+  arrange(desc(Count))
+BP4$Trimester <- "Third"
+BP4$Group <- "sPTD"
+
+BP_third_trimester <- full_join(BP3, BP4)
+BP_third_trimester <- BP_third_trimester %>%
+  group_by(Group) %>%
+  arrange(desc(Count))
+
+#BP_third_trimester %>%
+#  group_by(Description) %>%
+#  wilcox.test(Group, FoldEnrichment, alternative = "two.sided", conf.int = TRUE, conf.level = 0.95)
+
+write_csv(BP_third_trimester, "../output/tarca/biological_processes_central_clusters3.csv", col_names = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
