@@ -22,6 +22,7 @@ model for more informed predictions that account for network topology.
 ### Repository structure
 The project repository is structured in the following manner:
 
+```
 002_RP2/
 ├── hypergraph/
 │   ├── hypergraph.Rproj
@@ -54,6 +55,6 @@ The project repository is structured in the following manner:
     │   └── uhm-et-al-2025/ 
     └── output/
         ├── ivans/
-        └── wang/ 
-
+        └── wang/
+```
 
