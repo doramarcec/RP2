@@ -58,3 +58,68 @@ The project repository is structured in the following manner:
         └── wang/
 ```
 
+### Requirements
+
+This project combines a Python workflow (`predictive-modelling/`) and an R workflow (`hypergraph/`). The `single-cell-exploration/` was an exploratory part conducted at early stages of the project, that did not make it into the results. Package requirements and versions are listed below. 
+
+#### Python (`predictive-modelling/`)
+
+| Package         | Version |
+|-----------------|---------|
+| Python          | 3.11.8  |
+| Jupyter Lab     | 4.3.5   |
+| pandas          | 2.2.2   |
+| matplotlib      | 3.10.0  |
+| os              |    
+| numpy           |
+| sklearn         |
+| seaborn         |
+| plotly          |
+| pycombat        |
+| neuroCombat     |
+| harmonypy       |
+| fancyimpute     |
+| scipy           | 
+| glob            |
+| torch           |
+| itertools       |
+| torch_geometric |
+
+
+#### R (`hypergraph/`)
+
+| Package                           | Version       | Notebooks |
+|-----------------------------------|---------------|-----------|
+| R                                 | 4.4.1         | All
+| RStudio                           | 2024.12.1+563 | All
+| tidyverse                         | 2.0.0         | All
+| rstatix                           | 0.7.2         | `2025-01-10-hypernetwork-analysis.Rmd`, `2025-04-26-statistical-testing.Rmd` |
+| dendextend                        | 1.19.1        | `automated-hypernetwork-analysis.Rmd` |
+| gplots                            | 3.2.0         | `automated-hypernetwork-analysis.Rmd` |
+| plyr                              | 1.8.9         | `automated-hypernetwork-analysis.Rmd` |
+| ggpubr                            | 0.6.1         | `automated-hypernetwork-analysis.Rmd`, `2025-04-15-loeuf-mapping.Rmd` |
+| ggsci                             | 3.2.0         | `automated-hypernetwork-analysis.Rmd`, `2025-04-15-loeuf-mapping.Rmd` |
+| BioQC                             | 1.34.0        | `automated-hypernetwork-analysis.Rmd` |
+| readxl                            | 1.4.5         | `2025-04-17-HAR-mapping.Rmd` |
+| GenomicRanges                     | 1.58.0        | `2025-04-17-HAR-mapping.Rmd` |
+| GenomicFeatures                   | 1.58.0        | `2025-04-17-HAR-mapping.Rmd` |
+| AnnotationDbi                     | 1.68.0        | `2025-04-17-HAR-mapping.Rmd` |
+| TxDb.Hsapiens.UCSC.hg38.knownGene | 3.20.0        | `2025-04-17-HAR-mapping.Rmd` |
+| org.Hs.eg.db                      | 3.20.0        | `2025-04-17-HAR-mapping.Rmd` |
+| annotables                        | 0.2.0         | `2025-04-17-HAR-mapping.Rmd` |
+| clusterProfiler                   | 4.14.6        | `2025-04-17-HAR-mapping.Rmd` |
+| enrichplot                        | 1.26.6        | `2025-04-17-HAR-mapping.Rmd` |
+| pathview                          | 1.46.0        | `2025-04-17-HAR-mapping.Rmd` |
+| janitor                           | 2.2.1         | `ranked_glycogenes.Rmd`      |
+
+### Citation
+
+If you use or refer to this work, please cite it as:
+
+Marčec, D. (2026). *Predictive modelling of prematurity in asymptomatic singleton gestations using maternal plasma proteomics* [Master's thesis, University of Manchester]. GitHub. https://github.com/doramarcec/RP2
+
+Citation metadata is also available in [`CITATION.cff`](CITATION.cff) (used by GitHub's "Cite this repository" feature) for BibTeX and other formats.
+
+### License
+
+The code in this repository is licensed under the [MIT License](LICENSE). The dissertation text, abstract, and figures are made available under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).

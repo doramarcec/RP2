@@ -4,6 +4,7 @@ predictive-modelling/output/tarca_et_al_2021/GSE206454-term-only/full_data+metad
 predictive-modelling/output/tarca_et_al_2021/GSE206454-term-only/data.csv
 predictive-modelling/output/tarca_et_al_2021/merged_datasets_for_modelling.csv
 predictive-modelling/output/tarca_et_al_2021/merged_normalised_datasets_for_modelling.csv
+predictive-modelling/code/scripts/visualisation.py
 
 .Rproj.user/
 .Rhistory
