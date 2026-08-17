@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use or refer to this work, please cite it as below."
+title: "Predictive modelling of prematurity in asymptomatic singleton gestations using maternal plasma proteomics"
+authors:
+  - family-names: "Marčec"
+    given-names: "Dora"
+date-released: 2026
+url: "https://github.com/doramarcec/RP2"
+license: MIT
+type: thesis
+preferred-citation:
+  type: thesis
+  title: "Predictive modelling of prematurity in asymptomatic singleton gestations using maternal plasma proteomics"
+  authors:
+    - family-names: "Marčec"
+      given-names: "Dora"
+  year: 2026
+  institution:
+    name: "University of Manchester"
+  thesis-type: "Master's thesis"
+  url: "https://github.com/doramarcec/RP2"

@@ -66,51 +66,47 @@ This project combines a Python workflow (`predictive-modelling/`) and an R workf
 
 | Package         | Version |
 |-----------------|---------|
-| Python          | 3.11.8  |
-| Jupyter Lab     | 4.3.5   |
-| pandas          | 2.2.2   |
-| matplotlib      | 3.10.0  |
-| os              |    
-| numpy           |
-| sklearn         |
-| seaborn         |
-| plotly          |
-| pycombat        |
-| neuroCombat     |
-| harmonypy       |
-| fancyimpute     |
-| scipy           | 
-| glob            |
-| torch           |
-| itertools       |
-| torch_geometric |
-
+| Python          | 3.12.1  |
+| Jupyter Lab     | 4.4.5   |
+| pandas          | 2.2.3   |
+| matplotlib      | 3.9.2   |
+| numpy           | 2.0.0   |
+| sklearn         | 1.6.1   |
+| seaborn         | 0.13.2  |
+| plotly          | 5.24.1  |
+| pycombat        | 0.3.3   |
+| neuroCombat     | 0.2.12  |
+| harmonypy       | 0.0.10  |
+| fancyimpute     | 0.7.0   |
+| scipy           | 1.16.0  |
+| torch           | 2.7.1   |
+| torch_geometric | 2.6.1   |
 
 #### R (`hypergraph/`)
 
-| Package                           | Version       | Notebooks |
-|-----------------------------------|---------------|-----------|
-| R                                 | 4.4.1         | All
-| RStudio                           | 2024.12.1+563 | All
-| tidyverse                         | 2.0.0         | All
-| rstatix                           | 0.7.2         | `2025-01-10-hypernetwork-analysis.Rmd`, `2025-04-26-statistical-testing.Rmd` |
-| dendextend                        | 1.19.1        | `automated-hypernetwork-analysis.Rmd` |
-| gplots                            | 3.2.0         | `automated-hypernetwork-analysis.Rmd` |
-| plyr                              | 1.8.9         | `automated-hypernetwork-analysis.Rmd` |
-| ggpubr                            | 0.6.1         | `automated-hypernetwork-analysis.Rmd`, `2025-04-15-loeuf-mapping.Rmd` |
-| ggsci                             | 3.2.0         | `automated-hypernetwork-analysis.Rmd`, `2025-04-15-loeuf-mapping.Rmd` |
-| BioQC                             | 1.34.0        | `automated-hypernetwork-analysis.Rmd` |
-| readxl                            | 1.4.5         | `2025-04-17-HAR-mapping.Rmd` |
-| GenomicRanges                     | 1.58.0        | `2025-04-17-HAR-mapping.Rmd` |
-| GenomicFeatures                   | 1.58.0        | `2025-04-17-HAR-mapping.Rmd` |
-| AnnotationDbi                     | 1.68.0        | `2025-04-17-HAR-mapping.Rmd` |
-| TxDb.Hsapiens.UCSC.hg38.knownGene | 3.20.0        | `2025-04-17-HAR-mapping.Rmd` |
-| org.Hs.eg.db                      | 3.20.0        | `2025-04-17-HAR-mapping.Rmd` |
-| annotables                        | 0.2.0         | `2025-04-17-HAR-mapping.Rmd` |
-| clusterProfiler                   | 4.14.6        | `2025-04-17-HAR-mapping.Rmd` |
-| enrichplot                        | 1.26.6        | `2025-04-17-HAR-mapping.Rmd` |
-| pathview                          | 1.46.0        | `2025-04-17-HAR-mapping.Rmd` |
-| janitor                           | 2.2.1         | `ranked_glycogenes.Rmd`      |
+| Package                           | Version       | 
+|-----------------------------------|---------------|
+| R                                 | 4.4.1         |
+| RStudio                           | 2024.12.1+563 |
+| tidyverse                         | 2.0.0         |
+| rstatix                           | 0.7.2         |
+| dendextend                        | 1.19.1        |
+| gplots                            | 3.2.0         |
+| plyr                              | 1.8.9         |
+| ggpubr                            | 0.6.1         |
+| ggsci                             | 3.2.0         |
+| BioQC                             | 1.34.0        |
+| readxl                            | 1.4.5         |
+| GenomicRanges                     | 1.58.0        |
+| GenomicFeatures                   | 1.58.0        |
+| AnnotationDbi                     | 1.68.0        |
+| TxDb.Hsapiens.UCSC.hg38.knownGene | 3.20.0        |
+| org.Hs.eg.db                      | 3.20.0        |
+| annotables                        | 0.2.0         |
+| clusterProfiler                   | 4.14.6        |
+| enrichplot                        | 1.26.6        |
+| pathview                          | 1.46.0        |
+| janitor                           | 2.2.1         |
 
 ### Citation
 
@@ -122,4 +118,4 @@ Citation metadata is also available in [`CITATION.cff`](CITATION.cff) (used by G
 
 ### License
 
-The code in this repository is licensed under the [MIT License](LICENSE). The dissertation text, abstract, and figures are made available under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).
+The code in this repository is licensed under the [MIT License](LICENSE). The dissertation abstract and figures are made available under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).
