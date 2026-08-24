@@ -72,6 +72,8 @@ train the model, 40%, 26%, and 18% were found evolutionarily constrained (LOEUF 
 respectively, whereas no overlap with human accelerated regions was found by genomic ranges 
 encoding the plasma proteins used.  
 
+---
+
 ### Repository structure
 The project repository is structured in the following manner:
 
