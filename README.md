@@ -114,8 +114,6 @@ If you use or refer to this work, please cite it as:
 
 Marčec, D. (2026). *Predictive modelling of prematurity in asymptomatic singleton gestations using maternal plasma proteomics* [Master's thesis, University of Manchester]. GitHub. https://github.com/doramarcec/RP2
 
-Citation metadata is also available in [`CITATION.cff`](CITATION.cff) (used by GitHub's "Cite this repository" feature) for BibTeX and other formats.
-
 ### License
 
 The code in this repository is licensed under the [MIT License](LICENSE). The dissertation abstract and figures are made available under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).
