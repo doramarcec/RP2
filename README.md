@@ -58,6 +58,7 @@ percentile of hypergraph normalised ranks, compared to highly functional protein
 percentile, which achieved an AUC of 0.5 (95% CI: 0.447–0.557), equivalent to random 
 guessing, demonstrating no evidence of discriminatory ability between sPTD and control 
 groups.  
+
 The PC1 and DE-feature models reached an MCC of 0.96, reaching a strong positive 
 correlation between predicted and true group classifications, and reinforcing the previous 
 model evaluation, demonstrating robust and strong predictive abilities of these features. The 
@@ -65,6 +66,7 @@ model trained on the 10th percentile proteins reached an MCC of 0.56, a moderate
 correlation, whereas models trained on the 90th percentile proteins, and proteins that were 
 within the 90th percentile in controls but in 10th percentile in the sPTD group had MCC values 
 of 0, indicating no correlation between predicted and true group classifications.  
+
 From the selected protein features from PC1 loadings, DE and 10th percentile proteins used to 
 train the model, 40%, 26%, and 18% were found evolutionarily constrained (LOEUF < 0.6), 
 respectively, whereas no overlap with human accelerated regions was found by genomic ranges 
