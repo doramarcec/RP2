@@ -1,6 +1,6 @@
 # Predictive modelling of prematurity in asymptomatic singleton gestations using maternal plasma proteomics
 
-This repository contains all the code and computational work undertaken as part of my (RP1) dissertation submitted to The University of Manchester for the degree of Master of Science in Bioinformatics and Systems Biology in the Faculty of Biology, Medicine and Health.
+This repository contains the code and computational work undertaken as part of my (RP2) dissertation submitted to The University of Manchester for the degree of Master of Science in Bioinformatics and Systems Biology in the Faculty of Biology, Medicine and Health.
 
 ---
 
